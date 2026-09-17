@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ApiError, sendChatMessage } from "@/lib/api";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const SUGGESTIONS = [
   "What materials do you have for masonry?",
@@ -20,6 +20,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [engine, setEngine] = useState<ChatResponse["engine"]>(null);
   const [isSending, setIsSending] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -60,6 +61,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
       const response = await sendChatMessage(trimmed, sessionId);
 
       setSessionId(response.session_id);
+      setEngine(response.engine);
       setMessages((current) => [
         ...current,
         { id: nextMessageId("agent"), role: "agent", content: response.reply },
@@ -93,11 +95,26 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
           </p>
         </div>
         <span
+          // The Gemini badge matters: it means the Hermes gateway is down and
+          // the reply came from the fallback.
+          title={
+            engine === "gemini"
+              ? "The Hermes gateway is unreachable; answers come from the Gemini fallback"
+              : undefined
+          }
           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            sessionId ? "bg-success-soft text-success" : "bg-surface-muted text-muted"
+            engine === "gemini"
+              ? "bg-primary-soft text-primary"
+              : sessionId
+                ? "bg-success-soft text-success"
+                : "bg-surface-muted text-muted"
           }`}
         >
-          {sessionId ? "Session active" : "New session"}
+          {engine === "gemini"
+            ? "Gemini fallback"
+            : sessionId
+              ? "Session active"
+              : "New session"}
         </span>
       </header>
 

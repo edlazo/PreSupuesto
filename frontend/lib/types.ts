@@ -68,12 +68,15 @@ export interface ChatResponse {
   reply: string;
   session_id: string | null;
   model: string | null;
+  /** Which engine answered: the Hermes gateway, or the Gemini fallback. */
+  engine: "hermes" | "gemini" | null;
 }
 
 export interface HealthResponse {
   status: "ok";
   supabase_configured: boolean;
   hermes_configured: boolean;
+  gemini_configured: boolean;
 }
 
 /** A single message in the chat transcript. */
