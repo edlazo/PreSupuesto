@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Optional
 
 from supabase import Client, create_client
@@ -144,6 +145,50 @@ def delete_material(material_id: str) -> bool:
     """Delete a material. Returns False when the material does not exist."""
     query = get_client().table(MATERIALS_TABLE).delete().eq("id", material_id)
     return bool(_execute(query, action="delete material"))
+
+
+def bulk_update_material_prices(
+    *,
+    percentage: float,
+    category: Optional[str] = None,
+    material_ids: Optional[list[str]] = None,
+    only_active: bool = True,
+) -> list[dict[str, Any]]:
+    """Apply a percentage change to the unit price of the matching materials.
+
+    PostgREST cannot express `unit_price = unit_price * factor`, so the rows are
+    read, priced in Python and written back one by one. Returns the rows that
+    changed, which is empty when nothing matches or no price moves.
+    """
+    query = get_client().table(MATERIALS_TABLE).select("*")
+
+    if category:
+        query = query.eq("category", category)
+    if material_ids:
+        query = query.in_("id", material_ids)
+    if only_active:
+        query = query.eq("is_active", True)
+
+    materials = _execute(query.order("code"), action="list materials for bulk update")
+
+    factor = Decimal("1") + Decimal(str(percentage)) / Decimal("100")
+    updated: list[dict[str, Any]] = []
+
+    for material in materials:
+        current_price = Decimal(str(material["unit_price"]))
+        new_price = (current_price * factor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        # The column is non-negative, and a price cannot be talked below zero.
+        if new_price < 0:
+            new_price = Decimal("0.00")
+        if new_price == current_price:
+            continue
+
+        row = update_material(material["id"], {"unit_price": float(new_price)})
+        if row is not None:
+            updated.append(row)
+
+    return updated
 
 
 def count_materials(

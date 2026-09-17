@@ -2,6 +2,7 @@
 
 import type {
   Budget,
+  BulkPriceUpdateResult,
   ChatResponse,
   HealthResponse,
   Material,
@@ -41,7 +42,7 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Body was empty or not JSON; fall through to the generic message.
   }
 
-  return `Request failed with status ${response.status}`;
+  return `La solicitud falló con estado ${response.status}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -58,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new ApiError(
-      `Cannot reach the API at ${API_BASE_URL}. Is the backend running?`,
+      `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`,
       0,
     );
   }
@@ -116,6 +117,29 @@ export function deleteMaterial(id: string): Promise<{ id: string; deleted: boole
   });
 }
 
+export interface BulkPriceUpdate {
+  /** Percentage to apply: 12.5 raises prices by 12.5%, -5 lowers them. */
+  percentage: number;
+  /** Restrict the change to one category. */
+  category?: string;
+  /** Skip materials flagged as inactive. */
+  onlyActive?: boolean;
+}
+
+/** Raise or lower the unit price of several materials at once. */
+export function bulkUpdateMaterialPrices(
+  update: BulkPriceUpdate,
+): Promise<BulkPriceUpdateResult> {
+  return request<BulkPriceUpdateResult>("/api/materials/bulk-update-price", {
+    method: "POST",
+    body: JSON.stringify({
+      percentage: update.percentage,
+      category: update.category ?? null,
+      only_active: update.onlyActive ?? true,
+    }),
+  });
+}
+
 // --- Budgets ----------------------------------------------------------------
 export function listBudgets(limit = 20): Promise<Budget[]> {
   return request<Budget[]>(`/api/budgets?limit=${limit}`);
@@ -139,7 +163,7 @@ function filenameFromResponse(response: Response, fallback: string): string {
  * The file is fetched rather than opened in a tab so a failure surfaces as an
  * ApiError the caller can show, instead of an error page in a new window.
  */
-export async function downloadBudgetPdf(budgetId: string, fallbackName = "budget.pdf"): Promise<void> {
+export async function downloadBudgetPdf(budgetId: string, fallbackName = "presupuesto.pdf"): Promise<void> {
   let response: Response;
 
   try {
@@ -148,7 +172,7 @@ export async function downloadBudgetPdf(budgetId: string, fallbackName = "budget
     });
   } catch {
     throw new ApiError(
-      `Cannot reach the API at ${API_BASE_URL}. Is the backend running?`,
+      `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`,
       0,
     );
   }

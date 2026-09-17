@@ -6,6 +6,7 @@ Endpoints:
 * `GET    /api/budgets/{id}/pdf` — the budget as a downloadable PDF
 * `GET    /api/materials`        — list materials (search, filter, paginate)
 * `POST   /api/materials`        — create a material
+* `POST   /api/materials/bulk-update-price` — shift several prices by a percentage
 * `GET    /api/materials/{id}`   — read one material
 * `PUT|PATCH /api/materials/{id}`— update a material
 * `DELETE /api/materials/{id}`   — delete a material
@@ -23,6 +24,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from models import (
     BudgetRead,
+    BulkPriceUpdateRequest,
+    BulkPriceUpdateResponse,
     ChatRequest,
     ChatResponse,
     DeletedResponse,
@@ -63,11 +66,11 @@ def _handle_supabase_error(exc: SupabaseServiceError) -> HTTPException:
     if isinstance(exc, NotConfiguredError):
         return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.message)
     if exc.code == UNIQUE_VIOLATION:
-        return HTTPException(status.HTTP_409_CONFLICT, detail="A material with that code already exists")
+        return HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un material con ese código")
     if exc.code == FOREIGN_KEY_VIOLATION:
         return HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="The record is referenced by a budget and cannot be changed",
+            detail="El registro está usado por un presupuesto y no se puede modificar",
         )
     return HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.message)
 
@@ -132,6 +135,35 @@ def create_material(payload: MaterialCreate) -> MaterialRead:
     return MaterialRead.model_validate(row)
 
 
+@app.post(
+    "/api/materials/bulk-update-price",
+    response_model=BulkPriceUpdateResponse,
+    tags=["materials"],
+)
+def bulk_update_material_prices(payload: BulkPriceUpdateRequest) -> BulkPriceUpdateResponse:
+    """Raise or lower the unit price of several materials by a percentage.
+
+    The change can be limited to one category or to a list of materials, and
+    skips inactive ones unless `only_active` is false. A material whose price
+    does not move — a 0% change, or a price of zero — is left untouched.
+    """
+    try:
+        rows = supabase_service.bulk_update_material_prices(
+            percentage=payload.percentage,
+            category=payload.category,
+            material_ids=payload.material_ids,
+            only_active=payload.only_active,
+        )
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return BulkPriceUpdateResponse(
+        updated=len(rows),
+        percentage=payload.percentage,
+        materials=[MaterialRead.model_validate(row) for row in rows],
+    )
+
+
 @app.get("/api/materials/{material_id}", response_model=MaterialRead, tags=["materials"])
 def get_material(material_id: str) -> MaterialRead:
     """Read one material."""
@@ -141,7 +173,7 @@ def get_material(material_id: str) -> MaterialRead:
         raise _handle_supabase_error(exc) from exc
 
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Material not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el material")
 
     return MaterialRead.model_validate(row)
 
@@ -158,7 +190,7 @@ def update_material(material_id: str, payload: MaterialUpdate) -> MaterialRead:
         raise _handle_supabase_error(exc) from exc
 
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Material not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el material")
 
     return MaterialRead.model_validate(row)
 
@@ -176,7 +208,7 @@ def delete_material(material_id: str) -> DeletedResponse:
         raise _handle_supabase_error(exc) from exc
 
     if not deleted:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Material not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el material")
 
     return DeletedResponse(id=material_id)
 
@@ -211,7 +243,7 @@ def get_budget(budget_id: str) -> BudgetRead:
         raise _handle_supabase_error(exc) from exc
 
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Budget not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
     return BudgetRead.model_validate(row)
 
@@ -230,7 +262,7 @@ def get_budget_pdf(budget_id: str) -> Response:
         raise _handle_supabase_error(exc) from exc
 
     if budget is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Budget not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
     # The client block is nice to have: a missing client must not fail the PDF.
     client = None

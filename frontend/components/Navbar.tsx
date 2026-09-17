@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_LINKS = [
-  { href: "/", label: "Workspace" },
-  { href: "/materials", label: "Materials" },
+  { href: "/", label: "Escritorio" },
+  { href: "/materials", label: "Materiales" },
 ] as const;
 
 /** Application header with branding and the main navigation links. */
@@ -25,12 +25,12 @@ export default function Navbar() {
           <span className="flex flex-col leading-tight">
             <span className="text-base font-semibold tracking-tight">PreSupuesto</span>
             <span className="hidden text-xs text-muted sm:block">
-              Construction budgets, drafted by an agent
+              Presupuestos de obra, armados por un agente
             </span>
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1" aria-label="Main">
+        <nav className="flex items-center gap-1" aria-label="Principal">
           {NAV_LINKS.map((link) => {
             const isActive =
               link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);

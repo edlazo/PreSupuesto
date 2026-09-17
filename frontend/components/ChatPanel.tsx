@@ -5,9 +5,9 @@ import { ApiError, sendChatMessage } from "@/lib/api";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const SUGGESTIONS = [
-  "What materials do you have for masonry?",
-  "Estimate a 20 m² brick wall with 10% waste",
-  "Draft a budget for a 12 m² bathroom renovation",
+  "¿Qué materiales tenés para albañilería?",
+  "Calculá un muro de ladrillos de 20 m² con 10% de desperdicio",
+  "Armá un presupuesto para refaccionar un baño de 12 m²",
 ] as const;
 
 interface ChatPanelProps {
@@ -71,7 +71,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
       const message =
         error instanceof ApiError
           ? error.message
-          : "Something went wrong while contacting the agent.";
+          : "Hubo un problema al contactar al agente.";
 
       setMessages((current) => [
         ...current,
@@ -84,14 +84,14 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
 
   return (
     <section
-      aria-label="Chat with the agent"
+      aria-label="Conversación con el agente"
       className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold">Hermes Agent</h2>
+          <h2 className="text-sm font-semibold">Agente Hermes</h2>
           <p className="text-xs text-muted">
-            Ask for prices, estimates, or a full budget
+            Pedile precios, un cálculo o un presupuesto completo
           </p>
         </div>
         <span
@@ -99,7 +99,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
           // the reply came from the fallback.
           title={
             engine === "gemini"
-              ? "The Hermes gateway is unreachable; answers come from the Gemini fallback"
+              ? "No se puede contactar al gateway de Hermes: las respuestas vienen de Gemini"
               : undefined
           }
           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -111,10 +111,10 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
           }`}
         >
           {engine === "gemini"
-            ? "Gemini fallback"
+            ? "Respaldo Gemini"
             : sessionId
-              ? "Session active"
-              : "New session"}
+              ? "Sesión activa"
+              : "Sesión nueva"}
         </span>
       </header>
 
@@ -122,9 +122,9 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
             <div>
-              <p className="text-sm font-medium">Describe the job to budget</p>
+              <p className="text-sm font-medium">Contale qué trabajo hay que presupuestar</p>
               <p className="mt-1 text-sm text-muted">
-                The agent reads the materials catalog and prices the work for you.
+                El agente lee el catálogo de materiales y calcula los precios por vos.
               </p>
             </div>
             <div className="flex w-full max-w-md flex-col gap-2">
@@ -167,7 +167,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
               <span className="h-2 w-2 animate-bounce rounded-full bg-muted [animation-delay:-0.2s]" />
               <span className="h-2 w-2 animate-bounce rounded-full bg-muted [animation-delay:-0.1s]" />
               <span className="h-2 w-2 animate-bounce rounded-full bg-muted" />
-              <span className="ml-1">Working on it</span>
+              <span className="ml-1">Trabajando en eso</span>
             </div>
           </article>
         ) : null}
@@ -182,14 +182,14 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
       >
         <div className="flex items-end gap-2">
           <label htmlFor="chat-input" className="sr-only">
-            Message
+            Mensaje
           </label>
           <textarea
             id="chat-input"
             rows={2}
             value={input}
             disabled={isSending}
-            placeholder="e.g. Budget a 15 m² kitchen floor with porcelain tiles"
+            placeholder="Ej.: presupuestá 15 m² de piso de cocina con porcelanato"
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
               // Enter sends, Shift+Enter adds a line break.
@@ -205,7 +205,7 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
             disabled={isSending || input.trim().length === 0}
             className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Send
+            Enviar
           </button>
         </div>
       </form>

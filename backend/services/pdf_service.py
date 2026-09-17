@@ -8,6 +8,7 @@ returned as bytes, so the endpoint can stream it straight to the browser.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from datetime import date, datetime
 from io import BytesIO
 from typing import Any, Optional
@@ -37,21 +38,33 @@ MUTED_COLOR = colors.HexColor("#64748b")
 BORDER_COLOR = colors.HexColor("#e2e8f0")
 BAND_COLOR = colors.HexColor("#f8fafc")
 
+# Symbols as they are written in Argentina: pesos take the plain sign, and
+# dollars are marked "u$s" to tell the two apart.
 CURRENCY_SYMBOLS = {
-    "EUR": "€",
-    "USD": "$",
-    "GBP": "£",
     "ARS": "$",
-    "MXN": "$",
-    "COP": "$",
-    "CLP": "$",
+    "USD": "u$s",
 }
 
 # The line groups, in the order they are printed.
 ITEM_GROUPS = (
-    ("material", "Materials"),
-    ("task", "Labor"),
-    ("custom", "Other costs"),
+    ("material", "Materiales"),
+    ("task", "Mano de obra"),
+    ("custom", "Otros costos"),
+)
+
+# Budget statuses, as they are printed for the client.
+STATUS_LABELS = {
+    "draft": "Borrador",
+    "sent": "Enviado",
+    "accepted": "Aceptado",
+    "rejected": "Rechazado",
+    "expired": "Vencido",
+}
+
+# Month abbreviations, so the date does not depend on the server locale.
+MONTHS = (
+    "ene", "feb", "mar", "abr", "may", "jun",
+    "jul", "ago", "sep", "oct", "nov", "dic",
 )
 
 
@@ -70,21 +83,28 @@ def _to_float(value: Any) -> float:
         return 0.0
 
 
+def _localize_number(text: str) -> str:
+    """Rewrite 1,234.56 as the Argentine 1.234,56."""
+    return text.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
 def format_money(amount: Any, currency: str) -> str:
-    """Format an amount with its currency symbol, e.g. "2,599.44 €"."""
-    symbol = CURRENCY_SYMBOLS.get(currency.upper(), currency.upper())
-    return f"{_to_float(amount):,.2f} {symbol}"
+    """Format an amount with its currency symbol, e.g. "$ 2.599,44"."""
+    code = currency.upper()
+    symbol = CURRENCY_SYMBOLS.get(code, code)
+    amount_text = _localize_number(format(_to_float(amount), ",.2f"))
+    return f"{symbol} {amount_text}"
 
 
 def format_quantity(value: Any) -> str:
-    """Format a quantity without trailing zeros: 11.000 -> "11"."""
+    """Format a quantity without trailing zeros: 11.000 -> "11", 2.500 -> "2,5"."""
     number = _to_float(value)
-    text = f"{number:,.3f}".rstrip("0").rstrip(".")
+    text = _localize_number(format(number, ",.3f")).rstrip("0").rstrip(",")
     return text or "0"
 
 
 def _format_date(value: Any) -> str:
-    """Format a date or timestamp as "17 Sep 2026"."""
+    """Format a date or timestamp as "17 sep 2026"."""
     if value in (None, ""):
         return "—"
 
@@ -100,7 +120,7 @@ def _format_date(value: Any) -> str:
             except ValueError:
                 return str(value)
 
-    return parsed.strftime("%d %b %Y")
+    return f"{parsed.day} {MONTHS[parsed.month - 1]} {parsed.year}"
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +206,9 @@ def _draw_page_furniture(canvas: Any, doc: Any) -> None:
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(MUTED_COLOR)
     canvas.drawString(doc.leftMargin, 12 * mm, settings.company_name)
-    canvas.drawRightString(A4[0] - doc.rightMargin, 12 * mm, f"Page {canvas.getPageNumber()}")
+    canvas.drawRightString(
+        A4[0] - doc.rightMargin, 12 * mm, f"Página {canvas.getPageNumber()}"
+    )
 
     canvas.restoreState()
 
@@ -197,10 +219,12 @@ def _draw_page_furniture(canvas: Any, doc: Any) -> None:
 def _header_block(budget: dict[str, Any], styles: dict[str, ParagraphStyle]) -> list[Any]:
     """Title, budget number and status."""
     number = budget.get("budget_number")
-    title = budget.get("title") or "Budget"
+    title = budget.get("title") or "Presupuesto"
 
     return [
-        Paragraph(f"Budget #{number}" if number else "Budget", styles["title"]),
+        Paragraph(
+            f"Presupuesto #{number}" if number else "Presupuesto", styles["title"]
+        ),
         Paragraph(title, styles["subtitle"]),
         Spacer(1, 6 * mm),
     ]
@@ -223,7 +247,7 @@ def _parties_block(
             issuer_lines.append(value)
 
     if client:
-        client_lines = [f"<b>{client.get('full_name') or 'Client'}</b>"]
+        client_lines = [f"<b>{client.get('full_name') or 'Cliente'}</b>"]
         for value in (
             client.get("company_name"),
             client.get("tax_id"),
@@ -235,23 +259,26 @@ def _parties_block(
             if value:
                 client_lines.append(str(value))
     else:
-        client_lines = ["<b>Client</b>", "—"]
+        client_lines = ["<b>Cliente</b>", "—"]
 
+    status = str(budget.get("status") or "draft")
     meta_lines = [
-        f"<b>Date:</b> {_format_date(budget.get('created_at'))}",
-        f"<b>Status:</b> {str(budget.get('status') or 'draft').capitalize()}",
+        f"<b>Fecha:</b> {_format_date(budget.get('created_at'))}",
+        f"<b>Estado:</b> {STATUS_LABELS.get(status, status.capitalize())}",
     ]
     if budget.get("valid_until"):
-        meta_lines.append(f"<b>Valid until:</b> {_format_date(budget.get('valid_until'))}")
+        meta_lines.append(
+            f"<b>Válido hasta:</b> {_format_date(budget.get('valid_until'))}"
+        )
     if budget.get("site_address"):
-        meta_lines.append(f"<b>Site:</b> {budget['site_address']}")
+        meta_lines.append(f"<b>Obra:</b> {budget['site_address']}")
 
     table = Table(
         [
             [
-                Paragraph("FROM", styles["heading"]),
-                Paragraph("TO", styles["heading"]),
-                Paragraph("DETAILS", styles["heading"]),
+                Paragraph("DE", styles["heading"]),
+                Paragraph("PARA", styles["heading"]),
+                Paragraph("DATOS", styles["heading"]),
             ],
             [
                 Paragraph("<br/>".join(issuer_lines), styles["body"]),
@@ -300,10 +327,10 @@ def _items_table(
 
     rows: list[list[Any]] = [
         [
-            header_cell("Description"),
-            header_cell("Unit"),
-            header_cell("Qty", right=True),
-            header_cell("Unit price", right=True),
+            header_cell("Descripción"),
+            header_cell("Unidad"),
+            header_cell("Cant.", right=True),
+            header_cell("Precio unit.", right=True),
             header_cell("Total", right=True),
         ]
     ]
@@ -335,7 +362,10 @@ def _items_table(
             )
 
     if len(rows) == 1:
-        return [Paragraph("This budget has no lines yet.", styles["muted"]), Spacer(1, 4 * mm)]
+        return [
+            Paragraph("Este presupuesto todavía no tiene ítems.", styles["muted"]),
+            Spacer(1, 4 * mm),
+        ]
 
     table = Table(rows, colWidths=[78 * mm, 18 * mm, 20 * mm, 27 * mm, 27 * mm], repeatRows=1)
 
@@ -390,7 +420,7 @@ def _totals_block(
                 ),
             ],
             [
-                Paragraph(f"Tax ({tax_rate}%)", styles["cell"]),
+                Paragraph(f"IVA ({tax_rate}%)", styles["cell"]),
                 Paragraph(format_money(budget.get("tax_amount"), currency), styles["cell_right"]),
             ],
             [
@@ -424,8 +454,9 @@ def _totals_block(
                 totals,
                 Spacer(1, 8 * mm),
                 Paragraph(
-                    "Prices include the materials and labor listed above. "
-                    "Work not described in this document is quoted separately.",
+                    "Los precios incluyen los materiales y la mano de obra detallados "
+                    "arriba. Los trabajos no descriptos en este documento se presupuestan "
+                    "aparte.",
                     styles["muted"],
                 ),
             ]
@@ -457,9 +488,12 @@ def build_budget_pdf(budget: dict[str, Any], client: Optional[dict[str, Any]] = 
         rightMargin=18 * mm,
         topMargin=22 * mm,
         bottomMargin=20 * mm,
-        title=f"Budget #{budget.get('budget_number')} — {budget.get('title') or ''}".strip(" —"),
+        title=(
+            f"Presupuesto #{budget.get('budget_number')} — "
+            f"{budget.get('title') or ''}"
+        ).strip(" —"),
         author=settings.company_name,
-        subject="Construction budget",
+        subject="Presupuesto de obra",
     )
 
     story: list[Any] = []
@@ -478,12 +512,22 @@ def build_budget_pdf(budget: dict[str, Any], client: Optional[dict[str, Any]] = 
 
 
 def build_filename(budget: dict[str, Any]) -> str:
-    """Suggested download name, e.g. "budget-0001-kitchen-renovation.pdf"."""
+    """Suggested download name, e.g. "presupuesto-0001-refaccion-de-cocina.pdf".
+
+    The name travels in a Content-Disposition header, which carries no raw
+    UTF-8, so accents are folded to ASCII: "refacción" becomes "refaccion".
+    """
     number = budget.get("budget_number")
-    prefix = f"budget-{int(number):04d}" if isinstance(number, int) else "budget"
+    prefix = f"presupuesto-{int(number):04d}" if isinstance(number, int) else "presupuesto"
 
     title = str(budget.get("title") or "").lower()
-    slug = "".join(character if character.isalnum() else "-" for character in title)
+    # NFKD splits "ó" into "o" plus a combining accent, which is then dropped.
+    title = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", title)
+        if not unicodedata.combining(character)
+    )
+    slug = "".join(character if character.isascii() and character.isalnum() else "-" for character in title)
     slug = "-".join(part for part in slug.split("-") if part)[:60]
 
     return f"{prefix}-{slug}.pdf" if slug else f"{prefix}.pdf"

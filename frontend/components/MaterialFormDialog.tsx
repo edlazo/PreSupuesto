@@ -87,17 +87,17 @@ export default function MaterialFormDialog({
         }}
       >
         <h2 id="material-dialog-title" className="text-base font-semibold">
-          {material ? "Edit material" : "New material"}
+          {material ? "Editar material" : "Material nuevo"}
         </h2>
         <p className="mt-1 text-sm text-muted">
           {material
-            ? "Update the catalog entry. The agent prices new budgets with these values."
-            : "Add an entry to the catalog the agent prices budgets with."}
+            ? "Actualizá la ficha del catálogo. El agente usa estos valores en los presupuestos nuevos."
+            : "Agregá una ficha al catálogo con el que el agente calcula los presupuestos."}
         </p>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Code</span>
+            <span className="font-medium">Código</span>
             <input
               required
               value={values.code}
@@ -108,22 +108,22 @@ export default function MaterialFormDialog({
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Category</span>
+            <span className="font-medium">Categoría</span>
             <input
               required
               value={values.category}
-              placeholder="binders"
+              placeholder="aglomerantes"
               onChange={(event) => update("category", event.target.value)}
               className={FIELD_CLASS}
             />
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            <span className="font-medium">Name</span>
+            <span className="font-medium">Nombre</span>
             <input
               required
               value={values.name}
-              placeholder="Portland cement CEM II 32.5"
+              placeholder="Cemento Portland CP40"
               onChange={(event) => update("name", event.target.value)}
               className={FIELD_CLASS}
             />
@@ -131,30 +131,30 @@ export default function MaterialFormDialog({
 
           <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
             <span className="font-medium">
-              Description <span className="font-normal text-muted">(optional)</span>
+              Descripción <span className="font-normal text-muted">(opcional)</span>
             </span>
             <textarea
               rows={2}
               value={values.description ?? ""}
-              placeholder="25 kg bag of general-purpose Portland cement"
+              placeholder="Bolsa de 25 kg de cemento Portland de uso general"
               onChange={(event) => update("description", event.target.value)}
               className={`${FIELD_CLASS} resize-none`}
             />
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Unit</span>
+            <span className="font-medium">Unidad</span>
             <input
               required
               value={values.unit}
-              placeholder="bag"
+              placeholder="bolsa"
               onChange={(event) => update("unit", event.target.value)}
               className={FIELD_CLASS}
             />
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Unit price</span>
+            <span className="font-medium">Precio unitario</span>
             <input
               required
               type="number"
@@ -174,9 +174,10 @@ export default function MaterialFormDialog({
               className="h-4 w-4 accent-[var(--primary)]"
             />
             <span>
-              Active
+              Activo
               <span className="ml-1 text-muted">
-                — inactive materials stay in past budgets but are not offered for new ones
+                — los materiales inactivos siguen en los presupuestos viejos, pero no se
+                ofrecen para los nuevos
               </span>
             </span>
           </label>
@@ -192,14 +193,14 @@ export default function MaterialFormDialog({
             onClick={onClose}
             className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-foreground"
           >
-            Cancel
+            Cancelar
           </button>
           <button
             type="submit"
             disabled={isSaving}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? "Saving…" : material ? "Save changes" : "Create material"}
+            {isSaving ? "Guardando…" : material ? "Guardar cambios" : "Crear material"}
           </button>
         </div>
       </form>

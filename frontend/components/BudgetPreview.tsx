@@ -5,6 +5,15 @@ import { ApiError, downloadBudgetPdf, getLatestBudget } from "@/lib/api";
 import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
 
+// Status labels, as they are shown to the user.
+const STATUS_LABELS: Record<BudgetStatus, string> = {
+  draft: "Borrador",
+  sent: "Enviado",
+  accepted: "Aceptado",
+  rejected: "Rechazado",
+  expired: "Vencido",
+};
+
 const STATUS_STYLES: Record<BudgetStatus, string> = {
   draft: "bg-surface-muted text-muted",
   sent: "bg-primary-soft text-primary",
@@ -48,7 +57,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
       .catch((caught: unknown) => {
         if (!isActive) return;
         setError(
-          caught instanceof ApiError ? caught.message : "Could not load the budget.",
+          caught instanceof ApiError ? caught.message : "No se pudo cargar el presupuesto.",
         );
       })
       .finally(() => {
@@ -73,7 +82,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
       setExportError(null);
     } catch (caught) {
       setExportError(
-        caught instanceof ApiError ? caught.message : "Could not export the PDF.",
+        caught instanceof ApiError ? caught.message : "No se pudo exportar el PDF.",
       );
     } finally {
       setIsExporting(false);
@@ -87,16 +96,16 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
 
   return (
     <section
-      aria-label="Budget preview"
+      aria-label="Vista previa del presupuesto"
       className="print-area flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
       <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold">Budget preview</h2>
+          <h2 className="text-sm font-semibold">Vista previa del presupuesto</h2>
           <p className="truncate text-xs text-muted">
             {budget
               ? `#${budget.budget_number} · ${budget.title}`
-              : "The newest budget the agent stores appears here"}
+              : "Acá aparece el último presupuesto que guarde el agente"}
           </p>
         </div>
 
@@ -109,7 +118,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
             }}
             className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
           >
-            Refresh
+            Actualizar
           </button>
           <button
             type="button"
@@ -117,7 +126,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
             disabled={!budget || isExporting}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isExporting ? "Preparing…" : "Export PDF"}
+            {isExporting ? "Generando…" : "Exportar PDF"}
           </button>
         </div>
       </header>
@@ -130,29 +139,29 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
         ) : null}
 
         {isLoading && !budget ? (
-          <p className="text-sm text-muted">Loading…</p>
+          <p className="text-sm text-muted">Cargando…</p>
         ) : error ? (
           <div className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</div>
         ) : !budget ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <p className="text-sm font-medium">No budget yet</p>
+            <p className="text-sm font-medium">Todavía no hay presupuestos</p>
             <p className="mt-1 max-w-xs text-sm text-muted">
-              Ask the agent to draft one and it will show up here with its materials,
-              labor and totals.
+              Pedile uno al agente y va a aparecer acá con sus materiales, la mano de
+              obra y los totales.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${STATUS_STYLES[budget.status]}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[budget.status]}`}
               >
-                {budget.status}
+                {STATUS_LABELS[budget.status] ?? budget.status}
               </span>
-              <span className="text-xs text-muted">Created {formatDate(budget.created_at)}</span>
+              <span className="text-xs text-muted">Creado el {formatDate(budget.created_at)}</span>
               {budget.valid_until ? (
                 <span className="text-xs text-muted">
-                  · Valid until {formatDate(budget.valid_until)}
+                  · Válido hasta el {formatDate(budget.valid_until)}
                 </span>
               ) : null}
             </div>
@@ -161,19 +170,19 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
               <p className="text-sm text-muted">{budget.description}</p>
             ) : null}
 
-            <ItemGroup title="Materials" items={materials} currency={currency} />
-            <ItemGroup title="Labor" items={labor} currency={currency} />
-            <ItemGroup title="Other costs" items={other} currency={currency} />
+            <ItemGroup title="Materiales" items={materials} currency={currency} />
+            <ItemGroup title="Mano de obra" items={labor} currency={currency} />
+            <ItemGroup title="Otros costos" items={other} currency={currency} />
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
-              <Row label="Materials" value={formatCurrency(sumLines(materials), currency)} />
-              <Row label="Labor" value={formatCurrency(sumLines(labor), currency)} />
+              <Row label="Materiales" value={formatCurrency(sumLines(materials), currency)} />
+              <Row label="Mano de obra" value={formatCurrency(sumLines(labor), currency)} />
               {other.length > 0 ? (
-                <Row label="Other costs" value={formatCurrency(sumLines(other), currency)} />
+                <Row label="Otros costos" value={formatCurrency(sumLines(other), currency)} />
               ) : null}
               <Row label="Subtotal" value={formatCurrency(budget.subtotal, currency)} />
               <Row
-                label={`Tax (${formatQuantity(budget.tax_rate)}%)`}
+                label={`IVA (${formatQuantity(budget.tax_rate)}%)`}
                 value={formatCurrency(budget.tax_amount, currency)}
               />
               <div className="flex items-center justify-between border-t border-border pt-3 text-base font-semibold">

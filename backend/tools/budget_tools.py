@@ -501,7 +501,7 @@ _ESTIMATE_ITEMS_SCHEMA = {
             },
             "task_code": {
                 "type": "string",
-                "description": "Catalog code of a standard task, e.g. 'TSK-MAS-001'",
+                "description": "Catalog code of a standard task, e.g. 'TSK-ALB-001'",
             },
             "description": {
                 "type": "string",
@@ -537,7 +537,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "search": {"type": "string", "description": "Text to look for in the material name"},
                 "category": {
                     "type": "string",
-                    "description": "Exact category, e.g. 'masonry', 'binders', 'finishes'",
+                    "description": "Exact category, e.g. 'Albañilería', 'Materiales de agarre', 'Pintura'",
                 },
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
             },
@@ -549,7 +549,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "description": "Read one material from the catalog by its exact code.",
         "parameters": {
             "type": "object",
-            "properties": {"code": {"type": "string", "description": "Material code, e.g. 'MAT-BRK-001'"}},
+            "properties": {"code": {"type": "string", "description": "Material code, e.g. 'MAT-LAD-002'"}},
             "required": ["code"],
         },
     },
@@ -563,7 +563,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "search": {"type": "string", "description": "Text to look for in the task name"},
-                "trade": {"type": "string", "description": "Exact trade, e.g. 'masonry', 'painting'"},
+                "trade": {"type": "string", "description": "Exact trade, e.g. 'Albañilería', 'Pintura'"},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
             },
             "required": [],

@@ -1,23 +1,48 @@
 /** Formatting helpers shared by the workspace and the materials table. */
 
-const DEFAULT_CURRENCY = process.env.NEXT_PUBLIC_CURRENCY ?? "EUR";
+const DEFAULT_CURRENCY = process.env.NEXT_PUBLIC_CURRENCY ?? "ARS";
 
-/** Format an amount as currency, e.g. 811.5 -> "€811.50". */
+/**
+ * Currency symbols as they are written in Argentina: pesos take the plain
+ * sign, and dollars are marked "u$s" to tell the two apart.
+ */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  ARS: "$",
+  USD: "u$s",
+};
+
+const AMOUNT_FORMAT = new Intl.NumberFormat("es-AR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const QUANTITY_FORMAT = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
+
+const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/**
+ * Format an amount with its currency symbol: 2599.44 -> "$ 2.599,44".
+ *
+ * The symbol is placed by hand instead of using Intl's currency style, which
+ * would print "US$" for dollars rather than the local "u$s".
+ */
 export function formatCurrency(amount: number, currency: string = DEFAULT_CURRENCY): string {
-  return new Intl.NumberFormat("en-IE", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  const code = currency.toUpperCase();
+  const symbol = CURRENCY_SYMBOLS[code] ?? code;
+
+  return `${symbol} ${AMOUNT_FORMAT.format(amount)}`;
 }
 
-/** Format a quantity, dropping trailing zeros: 11.000 -> "11", 2.500 -> "2.5". */
+/** Format a quantity, dropping trailing zeros: 11.000 -> "11", 2.500 -> "2,5". */
 export function formatQuantity(quantity: number): string {
-  return new Intl.NumberFormat("en-IE", { maximumFractionDigits: 3 }).format(quantity);
+  return QUANTITY_FORMAT.format(quantity);
 }
 
-/** Format an ISO timestamp as a short date, e.g. "17 Sep 2026". */
+/** Format an ISO timestamp as a short date, e.g. "17 sept 2026". */
 export function formatDate(value: string | null): string {
   if (!value) {
     return "—";
@@ -29,9 +54,5 @@ export function formatDate(value: string | null): string {
     return "—";
   }
 
-  return new Intl.DateTimeFormat("en-IE", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return DATE_FORMAT.format(date);
 }

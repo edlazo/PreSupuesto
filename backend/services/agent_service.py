@@ -73,7 +73,8 @@ Never do the arithmetic yourself and never adjust a quantity by hand. When the
 user mentions waste or breakage, pass it as `waste_percent` on that material
 line and let the tool apply it; report the quantity and totals the tool returns.
 
-Quantities are metric (m2, m3, kg, m, bag, unit). Amounts are in {currency}.
+Quantities use the catalog units (m2, m3, kg, m, bolsa, balde, u). Amounts are
+in {currency}.
 Keep replies short: a line per figure, then the total.
 """.strip()
 

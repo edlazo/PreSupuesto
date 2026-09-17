@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import MaterialFormDialog from "@/components/MaterialFormDialog";
 import {
   ApiError,
+  bulkUpdateMaterialPrices,
   createMaterial,
   deleteMaterial,
   listMaterials,
@@ -28,6 +29,11 @@ export default function MaterialsTable() {
   const [isSaving, setIsSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const [bulkPercentage, setBulkPercentage] = useState("");
+  const [isApplyingBulk, setIsApplyingBulk] = useState(false);
+  // Result of the last bulk update, shown until the next one runs.
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
 
   // Wait for a pause in typing before querying the backend.
   useEffect(() => {
@@ -56,7 +62,7 @@ export default function MaterialsTable() {
       .catch((caught: unknown) => {
         if (!isActive) return;
         setError(
-          caught instanceof ApiError ? caught.message : "Could not load the materials.",
+          caught instanceof ApiError ? caught.message : "No se pudieron cargar los materiales.",
         );
       })
       .finally(() => {
@@ -92,7 +98,7 @@ export default function MaterialsTable() {
       setDialog({ mode: "closed" });
     } catch (caught) {
       setDialogError(
-        caught instanceof ApiError ? caught.message : "Could not save the material.",
+        caught instanceof ApiError ? caught.message : "No se pudo guardar el material.",
       );
     } finally {
       setIsSaving(false);
@@ -108,7 +114,7 @@ export default function MaterialsTable() {
       setMaterials((current) => current.filter((row) => row.id !== material.id));
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not delete the material.",
+        caught instanceof ApiError ? caught.message : "No se pudo eliminar el material.",
       );
     } finally {
       setPendingDeleteId(null);
@@ -125,8 +131,58 @@ export default function MaterialsTable() {
       setError(null);
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not update the price.",
+        caught instanceof ApiError ? caught.message : "No se pudo actualizar el precio.",
       );
+    }
+  }
+
+  /** Apply a percentage change to the prices currently in scope. */
+  async function handleBulkUpdate() {
+    const percentage = Number(bulkPercentage.replace(",", "."));
+
+    if (!Number.isFinite(percentage) || percentage === 0) {
+      setError("Escribí un porcentaje distinto de cero.");
+      return;
+    }
+
+    const scope = category ? `la categoría "${category}"` : "todo el catálogo";
+    const direction = percentage > 0 ? "aumentar" : "reducir";
+    const confirmed = window.confirm(
+      `¿Seguro que querés ${direction} los precios de ${scope} un ` +
+        `${Math.abs(percentage)}%? Solo afecta a los materiales activos.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsApplyingBulk(true);
+    setBulkNotice(null);
+
+    try {
+      const result = await bulkUpdateMaterialPrices({
+        percentage,
+        category: category || undefined,
+        onlyActive: true,
+      });
+
+      setBulkNotice(
+        result.updated === 0
+          ? "No se actualizó ningún precio."
+          : `Se actualizaron ${result.updated} precios (${percentage > 0 ? "+" : ""}` +
+            `${percentage}%).`,
+      );
+      setBulkPercentage("");
+      setError(null);
+      setReloadToken((current) => current + 1);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "No se pudieron actualizar los precios.",
+      );
+    } finally {
+      setIsApplyingBulk(false);
     }
   }
 
@@ -134,9 +190,10 @@ export default function MaterialsTable() {
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Materials</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Materiales</h1>
           <p className="text-sm text-muted">
-            The catalog the agent prices budgets with. {materials.length} shown.
+            El catálogo con el que el agente calcula los presupuestos.{" "}
+            {materials.length} a la vista.
           </p>
         </div>
         <button
@@ -147,28 +204,28 @@ export default function MaterialsTable() {
           }}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
         >
-          Add material
+          Agregar material
         </button>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <label className="flex-1">
-          <span className="sr-only">Search materials</span>
+          <span className="sr-only">Buscar materiales</span>
           <input
             value={search}
-            placeholder="Search by name…"
+            placeholder="Buscar por nombre…"
             onChange={(event) => setSearch(event.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-primary"
           />
         </label>
         <label className="sm:w-56">
-          <span className="sr-only">Filter by category</span>
+          <span className="sr-only">Filtrar por categoría</span>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
           >
-            <option value="">All categories</option>
+            <option value="">Todas las categorías</option>
             {categories.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -178,6 +235,60 @@ export default function MaterialsTable() {
         </label>
       </div>
 
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium">Actualización rápida de precios</p>
+          <p className="text-xs text-muted">
+            Aplica el porcentaje a{" "}
+            {category ? (
+              <>
+                la categoría <span className="font-medium">{category}</span>
+              </>
+            ) : (
+              "todo el catálogo"
+            )}
+            . Usá un valor negativo para bajar los precios.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="relative">
+            <span className="sr-only">Porcentaje a aplicar</span>
+            <input
+              type="number"
+              step="0.1"
+              min={-90}
+              max={1000}
+              value={bulkPercentage}
+              placeholder="0"
+              disabled={isApplyingBulk}
+              onChange={(event) => setBulkPercentage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void handleBulkUpdate();
+                }
+              }}
+              className="w-28 rounded-lg border border-border bg-background py-2 pl-3 pr-7 text-sm outline-none transition-colors focus:border-primary disabled:opacity-60"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted">
+              %
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleBulkUpdate()}
+            disabled={isApplyingBulk || bulkPercentage.trim() === ""}
+            className="rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isApplyingBulk ? "Aplicando…" : "Aplicar"}
+          </button>
+        </div>
+      </div>
+
+      {bulkNotice ? (
+        <p className="rounded-lg bg-success-soft px-4 py-3 text-sm text-success">{bulkNotice}</p>
+      ) : null}
+
       {error ? (
         <p className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>
       ) : null}
@@ -186,26 +297,26 @@ export default function MaterialsTable() {
         <table className="w-full min-w-[42rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-              <th scope="col" className="px-4 py-3 font-medium">Code</th>
-              <th scope="col" className="px-4 py-3 font-medium">Name</th>
-              <th scope="col" className="px-4 py-3 font-medium">Category</th>
-              <th scope="col" className="px-4 py-3 font-medium">Unit</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Unit price</th>
-              <th scope="col" className="px-4 py-3 font-medium">Status</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Actions</th>
+              <th scope="col" className="px-4 py-3 font-medium">Código</th>
+              <th scope="col" className="px-4 py-3 font-medium">Nombre</th>
+              <th scope="col" className="px-4 py-3 font-medium">Categoría</th>
+              <th scope="col" className="px-4 py-3 font-medium">Unidad</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Precio unit.</th>
+              <th scope="col" className="px-4 py-3 font-medium">Estado</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {isLoading && materials.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted">
-                  Loading materials…
+                  Cargando materiales…
                 </td>
               </tr>
             ) : materials.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted">
-                  No materials match this search.
+                  No hay materiales que coincidan con la búsqueda.
                 </td>
               </tr>
             ) : (
@@ -234,7 +345,7 @@ export default function MaterialsTable() {
                           : "bg-surface-muted text-muted"
                       }`}
                     >
-                      {material.is_active ? "Active" : "Inactive"}
+                      {material.is_active ? "Activo" : "Inactivo"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -247,7 +358,7 @@ export default function MaterialsTable() {
                         }}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
                       >
-                        Edit
+                        Editar
                       </button>
                       <button
                         type="button"
@@ -255,7 +366,7 @@ export default function MaterialsTable() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              `Delete "${material.name}"? Materials already used by a budget cannot be deleted — deactivate them instead.`,
+                              `¿Eliminar "${material.name}"? Los materiales que ya usa un presupuesto no se pueden eliminar: desactivalos en su lugar.`,
                             )
                           ) {
                             void handleDelete(material);
@@ -263,7 +374,7 @@ export default function MaterialsTable() {
                         }}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:border-danger disabled:opacity-50"
                       >
-                        {pendingDeleteId === material.id ? "Deleting…" : "Delete"}
+                        {pendingDeleteId === material.id ? "Eliminando…" : "Eliminar"}
                       </button>
                     </div>
                   </td>
@@ -321,7 +432,7 @@ function PriceCell({
           setValue(String(material.unit_price));
           setIsEditing(true);
         }}
-        title="Click to edit the price"
+        title="Tocá para editar el precio"
         className="rounded-md px-2 py-1 font-medium tabular-nums transition-colors hover:bg-primary-soft hover:text-primary"
       >
         {formatCurrency(material.unit_price)}
@@ -336,7 +447,7 @@ function PriceCell({
       min={0}
       step="0.01"
       value={value}
-      aria-label={`Unit price for ${material.name}`}
+      aria-label={`Precio unitario de ${material.name}`}
       // Select the current price so typing replaces it instead of appending.
       onFocus={(event) => event.target.select()}
       onChange={(event) => setValue(event.target.value)}

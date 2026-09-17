@@ -31,6 +31,13 @@ export interface MaterialCreate {
 /** Payload accepted by PATCH /api/materials/{id}. Every field is optional. */
 export type MaterialUpdate = Partial<MaterialCreate>;
 
+/** What POST /api/materials/bulk-update-price reports back. */
+export interface BulkPriceUpdateResult {
+  updated: number;
+  percentage: number;
+  materials: Material[];
+}
+
 export interface BudgetItem {
   id: string;
   budget_id: string;

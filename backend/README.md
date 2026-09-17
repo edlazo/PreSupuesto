@@ -122,6 +122,7 @@ which exercises the MCP tools without the web app.
 | GET | `/health` | Configuration status |
 | GET | `/api/materials` | `search`, `category`, `is_active`, `limit`, `offset`; total count in the `X-Total-Count` header |
 | POST | `/api/materials` | Create |
+| POST | `/api/materials/bulk-update-price` | Shift prices by a percentage: `{"percentage": 12.5, "category": "Albañilería", "only_active": true}`. A negative percentage lowers them |
 | GET | `/api/materials/{id}` | Read one |
 | PUT / PATCH | `/api/materials/{id}` | Update the fields present in the body |
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
@@ -130,11 +131,18 @@ which exercises the MCP tools without the web app.
 | GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename |
 | POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini` |
 
+## Currency
+
+Amounts are Argentine by default: `DEFAULT_CURRENCY=ARS` in `backend/.env`,
+printed as `$ 2.599,44`. Dollars print as `u$s 1.200,00`, and any other code is
+printed as-is. Both the PDF and the web interface follow the same convention.
+
 ## Budget PDFs
 
-`GET /api/budgets/{id}/pdf` renders an A4 quote with reportlab: issuer and
-client blocks, the lines grouped into materials, labor and other costs, then
-the subtotals, tax and total the database computed. The client block is filled
+`GET /api/budgets/{id}/pdf` renders an A4 quote with reportlab, written in
+Spanish for the client: issuer and client blocks, the lines grouped into
+materials, labor and other costs, then the subtotals, tax and total the
+database computed. The client block is filled
 from the `clients` row when it can be read, and the document still renders
 without it.
 

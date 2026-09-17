@@ -43,6 +43,36 @@ class MaterialUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class BulkPriceUpdateRequest(BaseModel):
+    """Apply a percentage change to the unit price of several materials."""
+
+    percentage: float = Field(
+        ge=-90,
+        le=1000,
+        description="Percentage to apply, e.g. 12.5 to raise prices by 12.5%, -5 to lower them",
+    )
+    category: Optional[str] = Field(
+        default=None,
+        description="Restrict the change to one category",
+    )
+    material_ids: Optional[list[str]] = Field(
+        default=None,
+        description="Restrict the change to these materials",
+    )
+    only_active: bool = Field(
+        default=True,
+        description="Skip materials flagged as inactive",
+    )
+
+
+class BulkPriceUpdateResponse(BaseModel):
+    """What a bulk price update changed."""
+
+    updated: int
+    percentage: float
+    materials: list["MaterialRead"] = Field(default_factory=list)
+
+
 class MaterialRead(MaterialBase):
     """A material as stored in the database."""
 
@@ -178,3 +208,7 @@ class HealthResponse(BaseModel):
     supabase_configured: bool
     hermes_configured: bool
     gemini_configured: bool
+
+
+# `BulkPriceUpdateResponse` refers to `MaterialRead`, which is defined below it.
+BulkPriceUpdateResponse.model_rebuild()

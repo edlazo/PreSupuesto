@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import MaterialsTable from "@/components/MaterialsTable";
 
 export const metadata: Metadata = {
-  title: "Materials · PreSupuesto",
-  description: "Manage the construction materials catalog and its unit prices.",
+  title: "Materiales · PreSupuesto",
+  description: "Gestioná el catálogo de materiales de obra y sus precios unitarios.",
 };
 
 /** Materials management view. */

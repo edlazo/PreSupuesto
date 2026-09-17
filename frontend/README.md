@@ -4,6 +4,10 @@ Next.js (App Router) + Tailwind CSS interface for PreSupuesto. It talks only to
 the FastAPI backend — Supabase and Hermes Agent are never called from the
 browser.
 
+The interface is written in Argentine Spanish; the code, props and comments
+stay in English. Display strings live inside the components that show them,
+with no translation layer — there is one language to serve.
+
 ## Layout
 
 | Path | Purpose |
@@ -47,11 +51,21 @@ database computed. "Export PDF" downloads the file the backend renders at
 a banner above the card rather than an error page in a new tab. The print
 stylesheet is still there, so Ctrl+P prints the card on its own.
 
-**Materials** — lists the catalog from `GET /api/materials`. A unit price can be
-edited in place by clicking it, and the pencil-free row actions open the full
+**Materials** — lists the catalog from `GET /api/materials`. The quick update
+control applies a percentage to every active price in scope — the whole catalog,
+or just the filtered category — through `POST /api/materials/bulk-update-price`,
+after a confirmation. A negative percentage lowers prices. A unit price can also
+be edited in place by clicking it, and the pencil-free row actions open the full
 form or delete the row. A material already used by a budget cannot be deleted;
 the backend answers 409 and the table shows that message, so deactivate it
 instead.
+
+## Currency
+
+`NEXT_PUBLIC_CURRENCY` (default `ARS`) drives `lib/format.ts`, which prints
+`$ 2.599,44` for pesos and `u$s 1.200,00` for dollars, in Argentine digit
+grouping. Amounts are formatted by hand rather than by Intl's currency style,
+which would print `US$` instead of the local `u$s`.
 
 ## Theming
 

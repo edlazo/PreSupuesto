@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PreSupuesto",
   description:
-    "Automate construction and renovation budgets with an agent backed by a live materials catalog.",
+    "Presupuestos de obra y refacción automatizados, con un agente conectado al catálogo de materiales.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="es-AR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">

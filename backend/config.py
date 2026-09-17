@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     company_phone: str = ""
 
     # --- Budget defaults ----------------------------------------------------
-    default_currency: str = "EUR"
+    default_currency: str = "ARS"
     default_tax_rate: float = 21.0
 
     @property

@@ -110,7 +110,7 @@ create table if not exists public.budgets (
   site_address  text,
   status        text not null default 'draft'
                 check (status in ('draft', 'sent', 'accepted', 'rejected', 'expired')),
-  currency      char(3) not null default 'EUR',
+  currency      char(3) not null default 'ARS',
   tax_rate      numeric(5, 2) not null default 0 check (tax_rate >= 0 and tax_rate <= 100),
   -- subtotal is maintained by the budget_items trigger below.
   subtotal      numeric(14, 2) not null default 0,
@@ -203,49 +203,52 @@ alter table public.budgets        enable row level security;
 alter table public.budget_items   enable row level security;
 
 -- -----------------------------------------------------------------------------
--- Seed data: construction materials with initial unit prices
+-- Seed data: construction materials with initial unit prices in ARS
 -- -----------------------------------------------------------------------------
 insert into public.materials (code, name, description, category, unit, unit_price) values
-  ('MAT-CEM-001', 'Portland cement CEM II 32.5', '25 kg bag of general-purpose Portland cement', 'binders',     'bag',  6.50),
-  ('MAT-CEM-002', 'White cement BL 42.5',        '25 kg bag of white cement for finishes',       'binders',     'bag', 11.90),
-  ('MAT-LIM-001', 'Hydrated lime',               '25 kg bag of hydrated building lime',          'binders',     'bag',  7.20),
-  ('MAT-PLA-001', 'Gypsum plaster',              '20 kg bag of gypsum plaster for interiors',    'binders',     'bag',  8.40),
-  ('MAT-MOR-001', 'Ready-mix masonry mortar M7.5', '25 kg bag of dry masonry mortar',            'mortars',     'bag',  4.80),
-  ('MAT-ADH-001', 'Tile adhesive C2TE',           '25 kg bag of flexible cementitious adhesive',  'mortars',     'bag', 14.50),
-  ('MAT-GRT-001', 'Tile grout',                  '5 kg bag of cementitious joint grout',         'mortars',     'bag',  9.75),
-  ('MAT-AGG-001', 'Washed sand 0/4',             'Fine aggregate for mortar and concrete',       'aggregates',  'm3',  32.00),
-  ('MAT-AGG-002', 'Gravel 6/12',                 'Coarse aggregate for concrete',                'aggregates',  'm3',  36.00),
-  ('MAT-CON-001', 'Ready-mix concrete HA-25',    'Structural ready-mix concrete delivered on site', 'concrete', 'm3',  95.00),
-  ('MAT-BRK-001', 'Solid clay brick',            '24x11.5x5 cm solid facing brick',              'masonry',     'unit',  0.45),
-  ('MAT-BRK-002', 'Hollow clay brick',           '24x11.5x7 cm perforated brick',                'masonry',     'unit',  0.28),
-  ('MAT-BLK-001', 'Concrete block 40x20x20',     'Hollow concrete masonry block',                'masonry',     'unit',  1.35),
-  ('MAT-STL-001', 'Rebar B500S 10 mm',           'Corrugated steel reinforcing bar',             'steel',       'kg',    1.10),
-  ('MAT-STL-002', 'Welded wire mesh 15x15 6 mm', '2.5x5 m reinforcing mesh sheet',               'steel',       'm2',    3.20),
-  ('MAT-DRY-001', 'Plasterboard 12.5 mm',        'Standard gypsum board 1.2x2.5 m',              'drywall',     'm2',    5.60),
-  ('MAT-DRY-002', 'Metal stud 70 mm',            'Galvanized steel stud for partitions',         'drywall',     'm',     2.10),
-  ('MAT-TIL-001', 'Porcelain floor tile 60x60',  'Rectified porcelain stoneware tile',           'finishes',    'm2',   22.00),
-  ('MAT-TIL-002', 'Ceramic wall tile 20x30',     'Glazed ceramic wall tile',                     'finishes',    'm2',   12.50),
-  ('MAT-PNT-001', 'Interior acrylic paint',      'Washable matte white paint',                   'finishes',    'l',     4.90),
-  ('MAT-INS-001', 'Mineral wool panel 50 mm',    'Thermal and acoustic insulation panel',        'insulation',  'm2',    6.80),
-  ('MAT-WPR-001', 'Waterproofing membrane',      'Liquid elastomeric waterproofing membrane',    'waterproofing', 'kg',  7.40),
-  ('MAT-PVC-001', 'PVC drain pipe 110 mm',       'Sanitation PVC pipe, 3 m length',              'plumbing',    'm',     4.25),
-  ('MAT-ELE-001', 'Electrical cable 2.5 mm2',    'H07V-K flexible copper cable',                 'electrical',  'm',     0.65)
+  ('MAT-CEM-001', 'Cemento Loma Negra CPC40 50 kg',      'Bolsa de 50 kg de cemento de uso general',                'Materiales de agarre', 'bolsa',  18500.00),
+  ('MAT-CEM-002', 'Cemento blanco Avellaneda 25 kg',     'Bolsa de 25 kg de cemento blanco para terminaciones',     'Materiales de agarre', 'bolsa',  22400.00),
+  ('MAT-CAL-001', 'Cal hidratada Cacique 25 kg',         'Bolsa de 25 kg de cal hidratada para morteros',           'Materiales de agarre', 'bolsa',   9600.00),
+  ('MAT-YES-001', 'Yeso Tuyango 40 kg',                  'Bolsa de 40 kg de yeso para interiores',                  'Materiales de agarre', 'bolsa',  12300.00),
+  ('MAT-MOR-001', 'Mortero premezclado Weber 30 kg',     'Bolsa de 30 kg de mortero seco para mampostería',         'Materiales de agarre', 'bolsa',  14200.00),
+  ('MAT-PEG-001', 'Pegamento Klaukol impermeable 30 kg', 'Bolsa de 30 kg de adhesivo para cerámicos y porcelanato', 'Materiales de agarre', 'bolsa',  16800.00),
+  ('MAT-PAS-001', 'Pastina Klaukol 5 kg',                'Bolsa de 5 kg de pastina para juntas',                    'Materiales de agarre', 'bolsa',   7900.00),
+  ('MAT-ARE-001', 'Arena fina',                          'Arena fina para revoques y mezclas',                      'Áridos',               'm3',     42000.00),
+  ('MAT-ARE-002', 'Arena gruesa',                        'Arena gruesa para contrapisos y hormigón',                'Áridos',               'm3',     45000.00),
+  ('MAT-PIE-001', 'Piedra partida 6-20',                 'Piedra partida para hormigón',                            'Áridos',               'm3',     58000.00),
+  ('MAT-HOR-001', 'Hormigón elaborado H-21',             'Hormigón elaborado entregado en obra',                    'Hormigón',             'm3',    148000.00),
+  ('MAT-LAD-001', 'Ladrillo común 5x12x25',              'Ladrillo común de campo',                                 'Albañilería',          'u',        380.00),
+  ('MAT-LAD-002', 'Ladrillo hueco 12x18x33',             'Ladrillo cerámico hueco de 12 cm para tabiques',          'Albañilería',          'u',        980.00),
+  ('MAT-LAD-003', 'Ladrillo hueco 8x18x33',              'Ladrillo cerámico hueco de 8 cm para tabiques',           'Albañilería',          'u',        790.00),
+  ('MAT-BLO-001', 'Bloque de hormigón 19x19x39',         'Bloque de hormigón hueco para mampostería',               'Albañilería',          'u',       1950.00),
+  ('MAT-HIE-001', 'Hierro aletado del 8 - barra 12 m',   'Barra de acero conformado ADN 420 de 8 mm',               'Hierros',              'u',      14500.00),
+  ('MAT-MAL-001', 'Malla Sima Q-188 2x5 m',              'Panel de malla electrosoldada para contrapisos',          'Hierros',              'u',      79000.00),
+  ('MAT-DUR-001', 'Placa de yeso Durlock 12,5 mm',       'Placa estándar de 1,20 x 2,40 m',                         'Durlock',              'u',      28500.00),
+  ('MAT-DUR-002', 'Perfil montante 70 mm - 2,60 m',      'Perfil galvanizado para tabiques de Durlock',             'Durlock',              'u',       9700.00),
+  ('MAT-POR-001', 'Porcelanato 60x60 rectificado',       'Porcelanato esmaltado para pisos interiores',             'Pisos y revestimientos','m2',     32000.00),
+  ('MAT-CER-001', 'Cerámica para pared 20x30',           'Cerámica esmaltada para revestimiento de paredes',        'Pisos y revestimientos','m2',     18500.00),
+  ('MAT-PIN-001', 'Látex interior Alba balde 20 l',      'Balde de 20 l de látex lavable blanco',                   'Pintura',              'balde',  92000.00),
+  ('MAT-PIN-002', 'Fijador al agua 20 l',                'Balde de 20 l de fijador para paredes nuevas',            'Pintura',              'balde',  48000.00),
+  ('MAT-AIS-001', 'Lana de vidrio 50 mm',                'Panel de lana de vidrio para aislación termoacústica',    'Aislaciones',          'm2',     11200.00),
+  ('MAT-IMP-001', 'Membrana líquida Sika 20 kg',         'Balde de 20 kg de membrana líquida para techos',          'Impermeabilización',   'balde',  86000.00),
+  ('MAT-PVC-001', 'Caño PVC 110 mm x 4 m',               'Caño de PVC para desagües cloacales',                     'Sanitarios',           'u',      22500.00),
+  ('MAT-ELE-001', 'Cable unipolar 2,5 mm2',              'Cable de cobre unipolar para instalaciones interiores',   'Electricidad',         'm',       1250.00)
 on conflict (code) do nothing;
 
 -- -----------------------------------------------------------------------------
--- Seed data: standard labor tasks with initial unit prices
+-- Seed data: standard labor tasks with initial unit prices in ARS
 -- -----------------------------------------------------------------------------
 insert into public.standard_tasks (code, name, description, trade, unit, labor_unit_price, estimated_hours_per_unit) values
-  ('TSK-DEM-001', 'Partition demolition',   'Demolish a non-structural partition and remove debris', 'demolition',    'm2',  18.00, 0.60),
-  ('TSK-MAS-001', 'Brick wall construction','Build a brick wall including mortar',                   'masonry',       'm2',  32.00, 1.20),
-  ('TSK-MAS-002', 'Block wall construction','Build a concrete block wall',                           'masonry',       'm2',  28.00, 1.00),
-  ('TSK-PLA-001', 'Wall plastering',        'Apply and finish plaster on interior walls',            'plastering',    'm2',  16.50, 0.70),
-  ('TSK-SCR-001', 'Floor screed',           'Level a floor with mortar screed',                      'plastering',    'm2',  14.00, 0.50),
-  ('TSK-TIL-001', 'Floor tiling',           'Lay floor tiles including adhesive and grout',          'tiling',        'm2',  26.00, 1.00),
-  ('TSK-TIL-002', 'Wall tiling',            'Lay wall tiles including adhesive and grout',           'tiling',        'm2',  30.00, 1.10),
-  ('TSK-DRY-001', 'Plasterboard partition', 'Build a plasterboard partition with metal studs',       'drywall',       'm2',  34.00, 1.00),
-  ('TSK-PNT-001', 'Interior painting',      'Two coats of paint on prepared interior surfaces',      'painting',      'm2',   9.50, 0.30),
-  ('TSK-PLU-001', 'Plumbing point',         'Install a water supply and drain point',                'plumbing',      'unit',95.00, 3.00),
-  ('TSK-ELE-001', 'Electrical point',       'Install a socket or lighting point with wiring',        'electrical',    'unit',48.00, 1.50),
-  ('TSK-WPR-001', 'Waterproofing',          'Apply a liquid waterproofing membrane',                 'waterproofing', 'm2',  22.00, 0.60)
+  ('TSK-DEM-001', 'Demolición de tabique',            'Demolición de tabique no portante y retiro de escombros',  'Demolición',         'm2',  12500.00, 0.60),
+  ('TSK-ALB-001', 'Levantado de pared de ladrillo',   'Levantado de pared de ladrillo hueco con mezcla',          'Albañilería',        'm2',  23000.00, 1.20),
+  ('TSK-ALB-002', 'Levantado de pared de bloques',    'Levantado de pared de bloques de hormigón',                'Albañilería',        'm2',  21000.00, 1.00),
+  ('TSK-REV-001', 'Revoque grueso y fino interior',   'Revoque completo sobre paredes interiores',                'Revoques',           'm2',  15500.00, 0.70),
+  ('TSK-CAR-001', 'Carpeta de nivelación',            'Carpeta de nivelación sobre contrapiso',                   'Revoques',           'm2',  11500.00, 0.50),
+  ('TSK-COL-001', 'Colocación de piso',               'Colocación de piso cerámico o porcelanato con pastina',    'Colocación',         'm2',  19500.00, 1.00),
+  ('TSK-COL-002', 'Colocación de revestimiento',      'Colocación de revestimiento en paredes con pastina',       'Colocación',         'm2',  21500.00, 1.10),
+  ('TSK-DUR-001', 'Tabique de Durlock',               'Armado de tabique de Durlock con perfilería y placas',     'Durlock',            'm2',  24500.00, 1.00),
+  ('TSK-PIN-001', 'Pintura látex interior',           'Dos manos de látex sobre superficies preparadas',          'Pintura',            'm2',   7800.00, 0.30),
+  ('TSK-PLO-001', 'Boca de agua y desagüe',           'Instalación de una boca de agua fría, caliente y desagüe', 'Plomería',           'u',   68000.00, 3.00),
+  ('TSK-ELE-001', 'Boca de luz o tomacorriente',      'Instalación de una boca con cableado y caja',              'Electricidad',       'u',   33000.00, 1.50),
+  ('TSK-IMP-001', 'Impermeabilización de losa',       'Aplicación de membrana líquida sobre losa',                'Impermeabilización', 'm2',  16500.00, 0.60)
 on conflict (code) do nothing;
