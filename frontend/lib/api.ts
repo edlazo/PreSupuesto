@@ -1,6 +1,7 @@
 /** Client for the PreSupuesto FastAPI backend. */
 
 import type {
+  BlueRate,
   Budget,
   BulkPriceUpdateResult,
   ChatResponse,
@@ -163,13 +164,31 @@ function filenameFromResponse(response: Response, fallback: string): string {
  * The file is fetched rather than opened in a tab so a failure surfaces as an
  * ApiError the caller can show, instead of an error page in a new window.
  */
-export async function downloadBudgetPdf(budgetId: string, fallbackName = "presupuesto.pdf"): Promise<void> {
+export interface PdfOptions {
+  /** Currency to print, e.g. "USD". Defaults to the budget's own. */
+  currency?: string;
+  /** Exchange rate to apply, so the file matches what the screen showed. */
+  rate?: number;
+}
+
+export async function downloadBudgetPdf(
+  budgetId: string,
+  fallbackName = "presupuesto.pdf",
+  options: PdfOptions = {},
+): Promise<void> {
+  const params = new URLSearchParams();
+
+  if (options.currency) params.set("currency", options.currency);
+  if (options.rate !== undefined) params.set("rate", String(options.rate));
+
+  const query = params.toString();
   let response: Response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/api/budgets/${budgetId}/pdf`, {
-      cache: "no-store",
-    });
+    response = await fetch(
+      `${API_BASE_URL}/api/budgets/${budgetId}/pdf${query ? `?${query}` : ""}`,
+      { cache: "no-store" },
+    );
   } catch {
     throw new ApiError(
       `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`,
@@ -204,6 +223,12 @@ export async function getLatestBudget(): Promise<Budget | null> {
   }
 
   return getBudget(budgets[0].id);
+}
+
+// --- Currency ---------------------------------------------------------------
+/** Read the current blue dollar rate. Pass true to skip the backend cache. */
+export function getBlueRate(refresh = false): Promise<BlueRate> {
+  return request<BlueRate>(`/api/currency/blue${refresh ? "?refresh=true" : ""}`);
 }
 
 // --- Agent ------------------------------------------------------------------

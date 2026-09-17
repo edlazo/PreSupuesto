@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useBlueRate } from "@/components/BlueRateProvider";
 import { ApiError, downloadBudgetPdf, getLatestBudget } from "@/lib/api";
-import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
+import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
+
+/** The currencies the preview can show a budget in. */
+type DisplayCurrency = "ARS" | "USD";
 
 // Status labels, as they are shown to the user.
 const STATUS_LABELS: Record<BudgetStatus, string> = {
@@ -27,6 +31,37 @@ interface BudgetPreviewProps {
   refreshToken: number;
 }
 
+/**
+ * Price a budget in dollars at the given rate.
+ *
+ * Each line is converted and rounded on its own and the totals are rebuilt
+ * from those lines, which is what `services/pdf_service.convert_budget` does,
+ * so the screen and the PDF always agree.
+ */
+function convertBudget(budget: Budget, rate: number): Budget {
+  const items = budget.items.map((item) => ({
+    ...item,
+    unit_price: convertAmount(item.unit_price, rate),
+    line_total: convertAmount(item.line_total, rate),
+  }));
+
+  const subtotal = roundToCents(items.reduce((total, item) => total + item.line_total, 0));
+  const taxAmount = roundToCents((subtotal * budget.tax_rate) / 100);
+
+  return {
+    ...budget,
+    items,
+    subtotal,
+    tax_amount: taxAmount,
+    total: roundToCents(subtotal + taxAmount),
+  };
+}
+
+/** Round to two decimals without the floating point noise. */
+function roundToCents(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
 /** Sum the line totals of a group of items. */
 function sumLines(items: BudgetItem[]): number {
   return items.reduce((total, item) => total + item.line_total, 0);
@@ -41,6 +76,8 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
   // Bumped by the Refresh button; `refreshToken` is bumped by the chat panel.
   const [manualToken, setManualToken] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("ARS");
+  const { rate: blueRate } = useBlueRate();
   // Kept apart from `error`, so a failed export does not replace the budget.
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -69,6 +106,15 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
     };
   }, [refreshToken, manualToken]);
 
+  // The budget is stored in pesos; dollars are a converted view of it.
+  const storedCurrency = (budget?.currency ?? "ARS").toUpperCase();
+  const sellRate = blueRate?.sell ?? null;
+  const isConverted = displayCurrency !== storedCurrency && sellRate !== null;
+  const view = useMemo(
+    () => (budget && isConverted ? convertBudget(budget, sellRate as number) : budget),
+    [budget, isConverted, sellRate],
+  );
+
   /** Download the budget as a PDF rendered by the backend. */
   async function exportPdf() {
     if (!budget) {
@@ -78,7 +124,12 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
     setIsExporting(true);
 
     try {
-      await downloadBudgetPdf(budget.id, `budget-${budget.budget_number}.pdf`);
+      // The file must show the same figures as the screen, so the rate
+      // travels with the request.
+      await downloadBudgetPdf(budget.id, `presupuesto-${budget.budget_number}.pdf`, {
+        currency: displayCurrency,
+        rate: isConverted ? (sellRate as number) : undefined,
+      });
       setExportError(null);
     } catch (caught) {
       setExportError(
@@ -89,10 +140,10 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
     }
   }
 
-  const materials = budget?.items.filter((item) => item.item_type === "material") ?? [];
-  const labor = budget?.items.filter((item) => item.item_type === "task") ?? [];
-  const other = budget?.items.filter((item) => item.item_type === "custom") ?? [];
-  const currency = budget?.currency ?? undefined;
+  const materials = view?.items.filter((item) => item.item_type === "material") ?? [];
+  const labor = view?.items.filter((item) => item.item_type === "task") ?? [];
+  const other = view?.items.filter((item) => item.item_type === "custom") ?? [];
+  const currency = displayCurrency;
 
   return (
     <section
@@ -110,6 +161,34 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
         </div>
 
         <div className="no-print flex shrink-0 items-center gap-2">
+          <div
+            role="group"
+            aria-label="Moneda del presupuesto"
+            className="flex items-center rounded-lg border border-border p-0.5"
+          >
+            {(["ARS", "USD"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setDisplayCurrency(option)}
+                disabled={option !== storedCurrency && sellRate === null}
+                title={
+                  option !== storedCurrency && sellRate === null
+                    ? "Sin cotización del blue para convertir"
+                    : undefined
+                }
+                aria-pressed={displayCurrency === option}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  displayCurrency === option
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                {option === "ARS" ? "$" : "u$s"}
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -142,7 +221,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
           <p className="text-sm text-muted">Cargando…</p>
         ) : error ? (
           <div className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</div>
-        ) : !budget ? (
+        ) : !budget || !view ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <p className="text-sm font-medium">Todavía no hay presupuestos</p>
             <p className="mt-1 max-w-xs text-sm text-muted">
@@ -164,6 +243,11 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
                   · Válido hasta el {formatDate(budget.valid_until)}
                 </span>
               ) : null}
+              {isConverted ? (
+                <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary">
+                  Blue venta {formatCurrency(sellRate as number, "ARS")}
+                </span>
+              ) : null}
             </div>
 
             {budget.description ? (
@@ -180,16 +264,24 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
               {other.length > 0 ? (
                 <Row label="Otros costos" value={formatCurrency(sumLines(other), currency)} />
               ) : null}
-              <Row label="Subtotal" value={formatCurrency(budget.subtotal, currency)} />
+              <Row label="Subtotal" value={formatCurrency(view.subtotal, currency)} />
               <Row
-                label={`IVA (${formatQuantity(budget.tax_rate)}%)`}
-                value={formatCurrency(budget.tax_amount, currency)}
+                label={`IVA (${formatQuantity(view.tax_rate)}%)`}
+                value={formatCurrency(view.tax_amount, currency)}
               />
               <div className="flex items-center justify-between border-t border-border pt-3 text-base font-semibold">
                 <dt>Total</dt>
-                <dd>{formatCurrency(budget.total, currency)}</dd>
+                <dd>{formatCurrency(view.total, currency)}</dd>
               </div>
             </dl>
+
+            {isConverted ? (
+              <p className="text-xs text-muted">
+                Equivale a {formatCurrency(budget.total, storedCurrency)} al dólar blue
+                vendedor de {formatCurrency(sellRate as number, "ARS")}. La cotización puede
+                variar hasta la aceptación del presupuesto.
+              </p>
+            ) : null}
           </div>
         )}
       </div>

@@ -37,6 +37,20 @@ export function formatCurrency(amount: number, currency: string = DEFAULT_CURREN
   return `${symbol} ${AMOUNT_FORMAT.format(amount)}`;
 }
 
+/**
+ * Convert an amount in pesos to dollars at the given rate, rounded to cents.
+ *
+ * The backend rounds the same way in `services/pdf_service.convert_budget`, so
+ * a converted budget reads identically on screen and in the PDF.
+ */
+export function convertAmount(amount: number, rate: number): number {
+  if (!Number.isFinite(rate) || rate <= 0) {
+    return amount;
+  }
+
+  return Math.round(((amount / rate) + Number.EPSILON) * 100) / 100;
+}
+
 /** Format a quantity, dropping trailing zeros: 11.000 -> "11", 2.500 -> "2,5". */
 export function formatQuantity(quantity: number): string {
   return QUANTITY_FORMAT.format(quantity);

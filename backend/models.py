@@ -192,6 +192,21 @@ class ChatResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Currency
+# ---------------------------------------------------------------------------
+class BlueRateResponse(BaseModel):
+    """Current blue dollar quote."""
+
+    buy: float = Field(description="Price the market pays for one dollar")
+    sell: float = Field(description="Price the market charges for one dollar")
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        description="When the upstream API last refreshed the quote",
+    )
+    source: str = Field(description="Where the quote comes from")
+
+
+# ---------------------------------------------------------------------------
 # Generic
 # ---------------------------------------------------------------------------
 class DeletedResponse(BaseModel):

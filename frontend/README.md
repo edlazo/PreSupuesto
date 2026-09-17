@@ -15,6 +15,7 @@ with no translation layer — there is one language to serve.
 | `app/layout.tsx` | Shared shell: header navbar with branding and navigation |
 | `app/page.tsx` | Workspace: chat on the left, live budget preview on the right |
 | `app/materials/page.tsx` | Materials management view |
+| `components/BlueRateProvider.tsx` | Holds the blue dollar rate for the header and the budget card |
 | `components/ChatPanel.tsx` | Conversation with the agent, session continuity |
 | `components/BudgetPreview.tsx` | Newest budget, grouped into materials / labor / other, with Export PDF |
 | `components/MaterialsTable.tsx` | Data table with search, inline price editing and delete |
@@ -66,6 +67,13 @@ instead.
 `$ 2.599,44` for pesos and `u$s 1.200,00` for dollars, in Argentine digit
 grouping. Amounts are formatted by hand rather than by Intl's currency style,
 which would print `US$` instead of the local `u$s`.
+
+The header shows the blue dollar buy and sell prices with a refresh button, and
+the budget card has an ARS / USD toggle. Both read the same rate from
+`BlueRateProvider`, so a budget can never be converted at a rate other than the
+one on screen. Dollars are a view: budgets stay stored in pesos, the total is
+shown with its peso equivalent underneath, and the exported PDF carries the same
+rate so the file matches what was on screen.
 
 ## Theming
 

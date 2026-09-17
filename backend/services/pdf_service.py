@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import unicodedata
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 from typing import Any, Optional
 
@@ -45,6 +46,12 @@ CURRENCY_SYMBOLS = {
     "USD": "u$s",
 }
 
+# Currency names, for the note that explains a converted document.
+CURRENCY_NAMES = {
+    "ARS": "pesos",
+    "USD": "dólares",
+}
+
 # The line groups, in the order they are printed.
 ITEM_GROUPS = (
     ("material", "Materiales"),
@@ -60,6 +67,8 @@ STATUS_LABELS = {
     "rejected": "Rechazado",
     "expired": "Vencido",
 }
+
+CENTS = Decimal("0.01")
 
 # Month abbreviations, so the date does not depend on the server locale.
 MONTHS = (
@@ -234,8 +243,11 @@ def _parties_block(
     budget: dict[str, Any],
     client: Optional[dict[str, Any]],
     styles: dict[str, ParagraphStyle],
+    *,
+    exchange_rate: Optional[float] = None,
+    currency: Optional[str] = None,
 ) -> list[Any]:
-    """Two columns: who issues the budget, and who receives it."""
+    """Three columns: who issues the budget, who receives it, and the details."""
     issuer_lines = [f"<b>{settings.company_name}</b>"]
     for value in (
         settings.company_tax_id,
@@ -272,6 +284,10 @@ def _parties_block(
         )
     if budget.get("site_address"):
         meta_lines.append(f"<b>Obra:</b> {budget['site_address']}")
+    if exchange_rate:
+        meta_lines.append(
+            f"<b>Cotización aplicada:</b> dólar blue venta {format_money(exchange_rate, 'ARS')}"
+        )
 
     table = Table(
         [
@@ -301,6 +317,17 @@ def _parties_block(
     )
 
     blocks: list[Any] = [table, Spacer(1, 6 * mm)]
+
+    if exchange_rate and currency:
+        blocks.append(
+            Paragraph(
+                f"Importes expresados en {CURRENCY_NAMES.get(currency, currency)} "
+                f"convertidos al dólar blue vendedor de {format_money(exchange_rate, 'ARS')}. "
+                "La cotización puede variar hasta la aceptación del presupuesto.",
+                styles["muted"],
+            )
+        )
+        blocks.append(Spacer(1, 4 * mm))
 
     if budget.get("description"):
         blocks.append(Paragraph(str(budget["description"]), styles["muted"]))
@@ -467,17 +494,77 @@ def _totals_block(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-def build_budget_pdf(budget: dict[str, Any], client: Optional[dict[str, Any]] = None) -> bytes:
+def convert_budget(budget: dict[str, Any], *, currency: str, exchange_rate: float) -> dict[str, Any]:
+    """Return a copy of the budget priced in `currency` at `exchange_rate`.
+
+    Every line is converted and rounded on its own, then the totals are rebuilt
+    from those lines, so the printed figures always add up. The tax rate is a
+    percentage, so it survives the conversion untouched.
+    """
+    if exchange_rate <= 0:
+        raise PdfServiceError("The exchange rate must be greater than zero")
+
+    rate = Decimal(str(exchange_rate))
+    converted_items = []
+
+    for item in budget.get("items") or []:
+        unit_price = (Decimal(str(_to_float(item.get("unit_price")))) / rate).quantize(
+            CENTS, rounding=ROUND_HALF_UP
+        )
+        line_total = (Decimal(str(_to_float(item.get("line_total")))) / rate).quantize(
+            CENTS, rounding=ROUND_HALF_UP
+        )
+        converted_items.append(dict(item, unit_price=float(unit_price), line_total=float(line_total)))
+
+    subtotal = sum(
+        (Decimal(str(item["line_total"])) for item in converted_items), Decimal("0")
+    ).quantize(CENTS, rounding=ROUND_HALF_UP)
+    tax_rate = Decimal(str(_to_float(budget.get("tax_rate"))))
+    tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(CENTS, rounding=ROUND_HALF_UP)
+
+    return dict(
+        budget,
+        currency=currency,
+        items=converted_items,
+        subtotal=float(subtotal),
+        tax_amount=float(tax_amount),
+        total=float(subtotal + tax_amount),
+    )
+
+
+def build_budget_pdf(
+    budget: dict[str, Any],
+    client: Optional[dict[str, Any]] = None,
+    *,
+    currency: Optional[str] = None,
+    exchange_rate: Optional[float] = None,
+) -> bytes:
     """Render a budget as a PDF and return its bytes.
 
     `budget` is a row from `supabase_service.get_budget()`, including `items`.
     `client` is the matching `clients` row when it is available; the document
     still renders without it.
+
+    Passing a `currency` different from the budget's own converts every amount
+    at `exchange_rate` — the blue dollar sell rate — and prints which rate was
+    applied, so the reader can check the arithmetic.
     """
     if not isinstance(budget, dict) or not budget.get("id"):
         raise PdfServiceError("A budget with an id is required to build a PDF")
 
-    currency = str(budget.get("currency") or settings.default_currency)
+    stored_currency = str(budget.get("currency") or settings.default_currency).upper()
+    currency = (currency or stored_currency).upper()
+
+    if currency != stored_currency:
+        if exchange_rate is None:
+            raise PdfServiceError(
+                f"An exchange rate is required to print a {stored_currency} budget in {currency}"
+            )
+        budget = convert_budget(budget, currency=currency, exchange_rate=exchange_rate)
+    else:
+        # Nothing to convert, so no rate is worth printing either.
+        exchange_rate = None
+
     styles = _styles()
     buffer = BytesIO()
 
@@ -498,7 +585,9 @@ def build_budget_pdf(budget: dict[str, Any], client: Optional[dict[str, Any]] = 
 
     story: list[Any] = []
     story.extend(_header_block(budget, styles))
-    story.extend(_parties_block(budget, client, styles))
+    story.extend(
+        _parties_block(budget, client, styles, exchange_rate=exchange_rate, currency=currency)
+    )
     story.extend(_items_table(budget, currency, styles))
     story.extend(_totals_block(budget, currency, styles))
 

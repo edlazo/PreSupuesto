@@ -14,6 +14,7 @@ backed by Supabase (PostgreSQL).
 | `services/hermes_service.py` | HTTP client for the Hermes Agent API server |
 | `services/agent_service.py` | Picks the engine: Hermes, or the Gemini fallback |
 | `services/pdf_service.py` | Renders a budget as an A4 PDF with reportlab |
+| `services/currency_service.py` | Blue dollar rate, read from dolarapi.com and cached briefly |
 | `tools/budget_tools.py` | The agent tools: catalogs, estimates, clients, budgets |
 | `mcp_server.py` | Serves those tools to Hermes Agent over MCP |
 
@@ -128,7 +129,8 @@ which exercises the MCP tools without the web app.
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
 | GET | `/api/budgets` | Budget headers, newest first; `client_id`, `status`, `limit` |
 | GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
-| GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename |
+| GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename. `?currency=USD` converts it, `&rate=` sets the rate to apply |
+| GET | `/api/currency/blue` | Current blue dollar buy and sell prices. `?refresh=true` skips the cache |
 | POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini` |
 
 ## Currency
@@ -136,6 +138,15 @@ which exercises the MCP tools without the web app.
 Amounts are Argentine by default: `DEFAULT_CURRENCY=ARS` in `backend/.env`,
 printed as `$ 2.599,44`. Dollars print as `u$s 1.200,00`, and any other code is
 printed as-is. Both the PDF and the web interface follow the same convention.
+
+## Blue dollar
+
+`GET /api/currency/blue` reads dolarapi.com and caches the answer for a minute,
+so the header widget and the budget preview can both ask for it freely. The
+widget's refresh button sends `?refresh=true`, which goes upstream again.
+
+The rate is only ever used to *show* a budget in dollars: budgets are stored in
+pesos, and nothing is written back converted.
 
 ## Budget PDFs
 

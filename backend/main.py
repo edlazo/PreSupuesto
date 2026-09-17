@@ -10,6 +10,7 @@ Endpoints:
 * `GET    /api/materials/{id}`   — read one material
 * `PUT|PATCH /api/materials/{id}`— update a material
 * `DELETE /api/materials/{id}`   — delete a material
+* `GET    /api/currency/blue`    — current blue dollar rate
 * `POST   /api/chat`             — talk to the Hermes Agent
 """
 
@@ -19,10 +20,12 @@ import logging
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from models import (
+    BlueRateResponse,
     BudgetRead,
     BulkPriceUpdateRequest,
     BulkPriceUpdateResponse,
@@ -34,8 +37,9 @@ from models import (
     MaterialRead,
     MaterialUpdate,
 )
-from services import agent_service, pdf_service, supabase_service
+from services import agent_service, currency_service, pdf_service, supabase_service
 from services.agent_service import AgentError
+from services.currency_service import CurrencyServiceError
 from services.pdf_service import PdfServiceError
 from services.hermes_service import HermesServiceError
 from services.supabase_service import NotConfiguredError, SupabaseServiceError
@@ -254,10 +258,25 @@ def get_budget(budget_id: str) -> BudgetRead:
     responses={200: {"content": {"application/pdf": {}}, "description": "The budget as a PDF"}},
     tags=["budgets"],
 )
-def get_budget_pdf(budget_id: str) -> Response:
-    """Render one budget as a downloadable PDF."""
+async def get_budget_pdf(
+    budget_id: str,
+    currency: Optional[str] = Query(
+        default=None,
+        description="Print the budget in this currency, e.g. USD. Defaults to the stored one",
+    ),
+    rate: Optional[float] = Query(
+        default=None,
+        gt=0,
+        description="Exchange rate to apply. Defaults to the current blue dollar sell rate",
+    ),
+) -> Response:
+    """Render one budget as a downloadable PDF.
+
+    Asking for a currency the budget was not priced in converts every amount,
+    and the document states which rate was applied.
+    """
     try:
-        budget = supabase_service.get_budget(budget_id)
+        budget = await run_in_threadpool(supabase_service.get_budget, budget_id)
     except SupabaseServiceError as exc:
         raise _handle_supabase_error(exc) from exc
 
@@ -268,12 +287,29 @@ def get_budget_pdf(budget_id: str) -> Response:
     client = None
     try:
         if budget.get("client_id"):
-            client = supabase_service.get_client_record(budget["client_id"])
+            client = await run_in_threadpool(
+                supabase_service.get_client_record, budget["client_id"]
+            )
     except SupabaseServiceError as exc:
         logger.warning("Could not load the client for budget %s: %s", budget_id, exc)
 
+    target_currency = (currency or budget.get("currency") or settings.default_currency).upper()
+    exchange_rate = rate
+
+    # Converting needs a rate: take the caller's, or read today's blue rate.
+    if target_currency != str(budget.get("currency") or "").upper() and exchange_rate is None:
+        try:
+            exchange_rate = (await currency_service.get_blue_rate()).sell
+        except CurrencyServiceError as exc:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
     try:
-        pdf_bytes = pdf_service.build_budget_pdf(budget, client)
+        pdf_bytes = pdf_service.build_budget_pdf(
+            budget,
+            client,
+            currency=target_currency,
+            exchange_rate=exchange_rate,
+        )
     except PdfServiceError as exc:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -287,6 +323,30 @@ def get_budget_pdf(budget_id: str) -> Response:
             # The browser reads the name from the header, which CORS hides by default.
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Currency
+# ---------------------------------------------------------------------------
+@app.get("/api/currency/blue", response_model=BlueRateResponse, tags=["currency"])
+async def get_blue_rate(
+    refresh: bool = Query(
+        default=False,
+        description="Skip the short-lived cache and read the upstream API again",
+    ),
+) -> BlueRateResponse:
+    """Return the current blue dollar buy and sell prices."""
+    try:
+        rate = await currency_service.get_blue_rate(force_refresh=refresh)
+    except CurrencyServiceError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    return BlueRateResponse(
+        buy=rate.buy,
+        sell=rate.sell,
+        updated_at=rate.updated_at,
+        source=rate.source,
     )
 
 

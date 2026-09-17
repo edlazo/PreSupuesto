@@ -71,6 +71,14 @@ export interface Budget {
   items: BudgetItem[];
 }
 
+/** Blue dollar quote from GET /api/currency/blue. */
+export interface BlueRate {
+  buy: number;
+  sell: number;
+  updated_at: string | null;
+  source: string;
+}
+
 export interface ChatResponse {
   reply: string;
   session_id: string | null;
