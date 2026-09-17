@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, getLatestBudget } from "@/lib/api";
+import { ApiError, downloadBudgetPdf, getLatestBudget } from "@/lib/api";
 import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
 
@@ -31,6 +31,9 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
 
   // Bumped by the Refresh button; `refreshToken` is bumped by the chat panel.
   const [manualToken, setManualToken] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  // Kept apart from `error`, so a failed export does not replace the budget.
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     // `isActive` drops the response of a request that a newer one has replaced.
@@ -56,6 +59,26 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
       isActive = false;
     };
   }, [refreshToken, manualToken]);
+
+  /** Download the budget as a PDF rendered by the backend. */
+  async function exportPdf() {
+    if (!budget) {
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      await downloadBudgetPdf(budget.id, `budget-${budget.budget_number}.pdf`);
+      setExportError(null);
+    } catch (caught) {
+      setExportError(
+        caught instanceof ApiError ? caught.message : "Could not export the PDF.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   const materials = budget?.items.filter((item) => item.item_type === "material") ?? [];
   const labor = budget?.items.filter((item) => item.item_type === "task") ?? [];
@@ -90,16 +113,22 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
-            disabled={!budget}
+            onClick={() => void exportPdf()}
+            disabled={!budget || isExporting}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Export PDF
+            {isExporting ? "Preparing…" : "Export PDF"}
           </button>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
+        {exportError ? (
+          <p className="no-print mb-4 rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">
+            {exportError}
+          </p>
+        ) : null}
+
         {isLoading && !budget ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : error ? (

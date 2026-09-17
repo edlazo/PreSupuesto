@@ -125,6 +125,52 @@ export function getBudget(id: string): Promise<Budget> {
   return request<Budget>(`/api/budgets/${id}`);
 }
 
+/** Read the download name the backend suggests in Content-Disposition. */
+function filenameFromResponse(response: Response, fallback: string): string {
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+
+  return match ? decodeURIComponent(match[1]) : fallback;
+}
+
+/**
+ * Download a budget as a PDF.
+ *
+ * The file is fetched rather than opened in a tab so a failure surfaces as an
+ * ApiError the caller can show, instead of an error page in a new window.
+ */
+export async function downloadBudgetPdf(budgetId: string, fallbackName = "budget.pdf"): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/budgets/${budgetId}/pdf`, {
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(
+      `Cannot reach the API at ${API_BASE_URL}. Is the backend running?`,
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filenameFromResponse(response, fallbackName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  // Give the browser a moment to start the download before releasing the blob.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 /** Fetch the most recent budget with its lines, or null when there is none. */
 export async function getLatestBudget(): Promise<Budget | null> {
   const budgets = await listBudgets(1);

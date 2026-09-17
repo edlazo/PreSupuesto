@@ -42,9 +42,10 @@ The app is then at http://localhost:3000.
 **Workspace** — every completed chat turn refetches the newest budget, so the
 card on the right fills in as soon as the agent stores one. It splits the lines
 into materials, labor and other costs, and shows the subtotal, tax and total the
-database computed. "Export PDF" prints the card through the browser's print
-dialog, which is where "Save as PDF" lives; a print stylesheet hides the rest of
-the page.
+database computed. "Export PDF" downloads the file the backend renders at
+`GET /api/budgets/{id}/pdf`, keeping its suggested filename; a failure shows as
+a banner above the card rather than an error page in a new tab. The print
+stylesheet is still there, so Ctrl+P prints the card on its own.
 
 **Materials** — lists the catalog from `GET /api/materials`. A unit price can be
 edited in place by clicking it, and the pencil-free row actions open the full
