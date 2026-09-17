@@ -1,0 +1,29 @@
+# Hermes Agent configuration for PreSupuesto.
+#
+# Merge this block into ~/.hermes/config.yaml (Windows: %USERPROFILE%\.hermes\config.yaml).
+# It tells Hermes to spawn the PreSupuesto MCP server, which is how the agent
+# reaches the budgeting tools in backend/tools/budget_tools.py.
+#
+# Use absolute paths: Hermes spawns the command directly, not through a shell.
+
+mcp_servers:
+  presupuesto:
+    # Windows: C:\Users\<you>\Documents\Projects\PreSupuesto\backend\venv\Scripts\python.exe
+    # macOS / Linux: /home/<you>/projects/PreSupuesto/backend/venv/bin/python
+    command: "C:/Users/<you>/Documents/Projects/PreSupuesto/backend/venv/Scripts/python.exe"
+    args:
+      - "C:/Users/<you>/Documents/Projects/PreSupuesto/backend/mcp_server.py"
+
+# The MCP server reads Supabase credentials from backend/.env by absolute path,
+# so no environment variables need to be passed here.
+#
+# Enable the API server that backend/services/hermes_service.py talks to by
+# adding these lines to ~/.hermes/.env (not this file):
+#
+#   API_SERVER_ENABLED=true
+#   API_SERVER_KEY=<a long random string, same value as HERMES_API_KEY>
+#   API_SERVER_PORT=8642
+#
+# Then start it with:
+#
+#   hermes gateway
