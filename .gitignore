@@ -1,0 +1,21 @@
+# Entornos virtuales de Python
+backend/venv/
+backend/.venv/
+*.pyc
+__pycache__/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Variables de entorno y secretos
+.env
+*.env
+.env.local
+.env.production
+
+# Sistema operativo e IDEs
+.DS_Store
+.vscode/
+.idea/
