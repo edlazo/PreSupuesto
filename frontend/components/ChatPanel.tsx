@@ -1,0 +1,197 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { ApiError, sendChatMessage } from "@/lib/api";
+import type { ChatMessage } from "@/lib/types";
+
+const SUGGESTIONS = [
+  "What materials do you have for masonry?",
+  "Estimate a 20 m² brick wall with 10% waste",
+  "Draft a budget for a 12 m² bathroom renovation",
+] as const;
+
+interface ChatPanelProps {
+  /** Called after every completed turn so the budget preview can refresh. */
+  onTurnComplete: () => void;
+}
+
+/** Conversation with the Hermes Agent. */
+export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  // Sequential ids keep message keys stable without calling Date.now() during render.
+  const messageCounterRef = useRef(0);
+
+  function nextMessageId(prefix: string) {
+    messageCounterRef.current += 1;
+    return `${prefix}-${messageCounterRef.current}`;
+  }
+
+  // Keep the newest message in view.
+  useEffect(() => {
+    transcriptRef.current?.scrollTo({
+      top: transcriptRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, isSending]);
+
+  async function send(text: string) {
+    const trimmed = text.trim();
+
+    if (!trimmed || isSending) {
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: nextMessageId("user"),
+      role: "user",
+      content: trimmed,
+    };
+
+    setMessages((current) => [...current, userMessage]);
+    setInput("");
+    setIsSending(true);
+
+    try {
+      const response = await sendChatMessage(trimmed, sessionId);
+
+      setSessionId(response.session_id);
+      setMessages((current) => [
+        ...current,
+        { id: nextMessageId("agent"), role: "agent", content: response.reply },
+      ]);
+      onTurnComplete();
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong while contacting the agent.";
+
+      setMessages((current) => [
+        ...current,
+        { id: nextMessageId("error"), role: "agent", content: message, failed: true },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <section
+      aria-label="Chat with the agent"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
+    >
+      <header className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold">Hermes Agent</h2>
+          <p className="text-xs text-muted">
+            Ask for prices, estimates, or a full budget
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            sessionId ? "bg-success-soft text-success" : "bg-surface-muted text-muted"
+          }`}
+        >
+          {sessionId ? "Session active" : "New session"}
+        </span>
+      </header>
+
+      <div ref={transcriptRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+            <div>
+              <p className="text-sm font-medium">Describe the job to budget</p>
+              <p className="mt-1 text-sm text-muted">
+                The agent reads the materials catalog and prices the work for you.
+              </p>
+            </div>
+            <div className="flex w-full max-w-md flex-col gap-2">
+              {SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => void send(suggestion)}
+                  className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-left text-sm text-muted transition-colors hover:border-primary hover:text-foreground"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <article
+              key={message.id}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
+                  message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : message.failed
+                      ? "bg-danger-soft text-danger"
+                      : "bg-surface-muted text-foreground"
+                }`}
+              >
+                {message.content}
+              </div>
+            </article>
+          ))
+        )}
+
+        {isSending ? (
+          <article className="flex justify-start" aria-live="polite">
+            <div className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-3 text-sm text-muted">
+              <span className="h-2 w-2 animate-bounce rounded-full bg-muted [animation-delay:-0.2s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-muted [animation-delay:-0.1s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-muted" />
+              <span className="ml-1">Working on it</span>
+            </div>
+          </article>
+        ) : null}
+      </div>
+
+      <form
+        className="border-t border-border p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send(input);
+        }}
+      >
+        <div className="flex items-end gap-2">
+          <label htmlFor="chat-input" className="sr-only">
+            Message
+          </label>
+          <textarea
+            id="chat-input"
+            rows={2}
+            value={input}
+            disabled={isSending}
+            placeholder="e.g. Budget a 15 m² kitchen floor with porcelain tiles"
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter sends, Shift+Enter adds a line break.
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void send(input);
+              }
+            }}
+            className="min-h-[3rem] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-primary disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={isSending || input.trim().length === 0}
+            className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
