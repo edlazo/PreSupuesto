@@ -3,6 +3,7 @@
 Endpoints:
 
 * `GET    /health`               — service and configuration status
+* `GET    /api/budgets/{id}/pdf` — the budget as a downloadable PDF
 * `GET    /api/materials`        — list materials (search, filter, paginate)
 * `POST   /api/materials`        — create a material
 * `GET    /api/materials/{id}`   — read one material
@@ -30,7 +31,9 @@ from models import (
     MaterialRead,
     MaterialUpdate,
 )
-from services import hermes_service, supabase_service
+from services import agent_service, pdf_service, supabase_service
+from services.agent_service import AgentError
+from services.pdf_service import PdfServiceError
 from services.hermes_service import HermesServiceError
 from services.supabase_service import NotConfiguredError, SupabaseServiceError
 
@@ -74,10 +77,11 @@ def _handle_supabase_error(exc: SupabaseServiceError) -> HTTPException:
 # ---------------------------------------------------------------------------
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
-    """Report whether Supabase and Hermes Agent are configured."""
+    """Report whether Supabase, Hermes Agent and the Gemini fallback are configured."""
     return HealthResponse(
         supabase_configured=settings.supabase_configured,
         hermes_configured=settings.hermes_configured,
+        gemini_configured=settings.gemini_configured,
     )
 
 
@@ -212,23 +216,74 @@ def get_budget(budget_id: str) -> BudgetRead:
     return BudgetRead.model_validate(row)
 
 
+@app.get(
+    "/api/budgets/{budget_id}/pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "The budget as a PDF"}},
+    tags=["budgets"],
+)
+def get_budget_pdf(budget_id: str) -> Response:
+    """Render one budget as a downloadable PDF."""
+    try:
+        budget = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if budget is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Budget not found")
+
+    # The client block is nice to have: a missing client must not fail the PDF.
+    client = None
+    try:
+        if budget.get("client_id"):
+            client = supabase_service.get_client_record(budget["client_id"])
+    except SupabaseServiceError as exc:
+        logger.warning("Could not load the client for budget %s: %s", budget_id, exc)
+
+    try:
+        pdf_bytes = pdf_service.build_budget_pdf(budget, client)
+    except PdfServiceError as exc:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    filename = pdf_service.build_filename(budget)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            # The browser reads the name from the header, which CORS hides by default.
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Hermes Agent chat
 # ---------------------------------------------------------------------------
 @app.post("/api/chat", response_model=ChatResponse, tags=["agent"])
 async def chat(payload: ChatRequest) -> ChatResponse:
-    """Send a message to the Hermes Agent and return its reply.
+    """Send a message to the agent and return its reply.
+
+    Hermes Agent answers when its gateway is reachable, and it reaches the
+    budgeting tools through the MCP server in `backend/mcp_server.py`. When the
+    gateway is down, the Gemini fallback answers instead and runs the same
+    tools in this process. The response says which engine replied.
 
     Pass the `session_id` from the response back on the next call to keep the
-    conversation going. The agent reaches the budgeting tools through the MCP
-    server in `backend/mcp_server.py`.
+    conversation going.
     """
     try:
-        reply, session_id, model = await hermes_service.send_chat_message(
+        answer = await agent_service.send_message(
             payload.message,
             session_id=payload.session_id,
         )
-    except HermesServiceError as exc:
+    except (AgentError, HermesServiceError) as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
-    return ChatResponse(reply=reply, session_id=session_id, model=model)
+    return ChatResponse(
+        reply=answer.reply,
+        session_id=answer.session_id,
+        model=answer.model,
+        engine=answer.engine,
+    )

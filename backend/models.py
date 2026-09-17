@@ -155,6 +155,10 @@ class ChatResponse(BaseModel):
     reply: str
     session_id: Optional[str] = None
     model: Optional[str] = None
+    engine: Optional[Literal["hermes", "gemini"]] = Field(
+        default=None,
+        description="Which engine answered: the Hermes gateway, or the Gemini fallback",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -173,3 +177,4 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     supabase_configured: bool
     hermes_configured: bool
+    gemini_configured: bool

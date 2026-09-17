@@ -27,6 +27,15 @@ class HermesServiceError(Exception):
     """Raised when the Hermes Agent API server cannot be reached or fails."""
 
 
+class HermesUnavailableError(HermesServiceError):
+    """Raised when the gateway is unreachable, unconfigured, or failing.
+
+    This is the signal the agent service falls back to Gemini on. A 4xx answer
+    is *not* unavailability — the gateway is up and rejecting the request, and
+    masking that behind a fallback would hide a real configuration problem.
+    """
+
+
 async def send_chat_message(
     message: str,
     *,
@@ -38,7 +47,7 @@ async def send_chat_message(
     to send on the next call to continue the same conversation.
     """
     if not settings.hermes_configured:
-        raise HermesServiceError(
+        raise HermesUnavailableError(
             "HERMES_API_URL and HERMES_API_KEY must be set in backend/.env, "
             "and the Hermes Agent API server must be running"
         )
@@ -62,12 +71,19 @@ async def send_chat_message(
             response = await client.post(url, json=payload, headers=headers)
     except httpx.RequestError as exc:
         logger.error("Could not reach the Hermes Agent API server at %s: %s", url, exc)
-        raise HermesServiceError(f"Could not reach the Hermes Agent API server: {exc}") from exc
+        raise HermesUnavailableError(
+            f"Could not reach the Hermes Agent API server: {exc}"
+        ) from exc
 
     if response.status_code >= 400:
         detail = response.text.strip()
         logger.error("Hermes Agent returned %s: %s", response.status_code, detail)
-        raise HermesServiceError(f"Hermes Agent returned {response.status_code}: {detail}")
+        message = f"Hermes Agent returned {response.status_code}: {detail}"
+
+        # 5xx means the gateway is up but broken, which the fallback covers.
+        if response.status_code >= 500:
+            raise HermesUnavailableError(message)
+        raise HermesServiceError(message)
 
     try:
         body = response.json()

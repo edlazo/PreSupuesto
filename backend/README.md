@@ -12,6 +12,8 @@ backed by Supabase (PostgreSQL).
 | `models.py` | Pydantic request and response types |
 | `services/supabase_service.py` | Every database read and write |
 | `services/hermes_service.py` | HTTP client for the Hermes Agent API server |
+| `services/agent_service.py` | Picks the engine: Hermes, or the Gemini fallback |
+| `services/pdf_service.py` | Renders a budget as an A4 PDF with reportlab |
 | `tools/budget_tools.py` | The agent tools: catalogs, estimates, clients, budgets |
 | `mcp_server.py` | Serves those tools to Hermes Agent over MCP |
 
@@ -21,17 +23,44 @@ Hermes Agent runs as its own process, not as a library inside FastAPI. Two
 connections join it to this backend:
 
 ```
-Next.js  ──HTTP──>  FastAPI /api/chat  ──HTTP──>  Hermes Agent API server
-                                                          │
-                                                        MCP (stdio)
-                                                          v
-                                            backend/mcp_server.py
-                                            └─ tools/budget_tools.py
-                                               └─ services/supabase_service.py
+Next.js ──HTTP──> FastAPI /api/chat ──> agent_service
+                                          │
+                        reachable?  ──────┴──────  unreachable
+                             │                          │
+                             v                          v
+                  Hermes Agent API server        Gemini API
+                             │                          │
+                        MCP (stdio)              same tools, in
+                             v                   this process
+                   backend/mcp_server.py                │
+                             └──── tools/budget_tools.py ┘
+                                          │
+                                 services/supabase_service.py
 ```
 
-The REST endpoints talk to Supabase directly; the agent reaches the same data
-through the tools. Both paths share `supabase_service.py`.
+The REST endpoints talk to Supabase directly; both agent paths reach the same
+data through the same tools, and everything shares `supabase_service.py`.
+
+## The Gemini fallback
+
+Hermes Agent is the primary engine. When its gateway cannot be reached — not
+running, wrong URL, or answering 5xx — `agent_service` answers with the Gemini
+API instead and runs `tools/budget_tools.py` in this process through function
+calling. A 4xx from Hermes is *not* a fallback: the gateway is up and rejecting
+the request, and hiding that would mask a configuration problem.
+
+Set `GEMINI_API_KEY` in `backend/.env` to enable it. `GEMINI_MODEL` picks the
+model and `GEMINI_FALLBACK_MODELS` lists the ones to try when it answers 503
+("high demand") or 429 (rate limit) — both are counted per model, so the next
+model in the chain often answers.
+
+What differs on the fallback path:
+
+* conversations live in this process, under a session id prefixed `gemini-`,
+  and are lost on restart — Hermes is what persists them;
+* a session stays on the engine that started it while that engine is available,
+  so the fallback conversation is not cut in half when Hermes comes back;
+* `POST /api/chat` reports which engine answered in its `engine` field.
 
 ## Setup
 
@@ -82,8 +111,8 @@ API_SERVER_PORT=8642
 hermes gateway
 ```
 
-Check the wiring with `GET /health`, which reports whether Supabase and Hermes
-are configured, and with `hermes chat -q "List the materials in the catalog"`,
+Check the wiring with `GET /health`, which reports whether Supabase, Hermes and
+the Gemini fallback are configured, and with `hermes chat -q "List the materials in the catalog"`,
 which exercises the MCP tools without the web app.
 
 ## API
@@ -98,7 +127,30 @@ which exercises the MCP tools without the web app.
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
 | GET | `/api/budgets` | Budget headers, newest first; `client_id`, `status`, `limit` |
 | GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
-| POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation |
+| GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename |
+| POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini` |
+
+## Budget PDFs
+
+`GET /api/budgets/{id}/pdf` renders an A4 quote with reportlab: issuer and
+client blocks, the lines grouped into materials, labor and other costs, then
+the subtotals, tax and total the database computed. The client block is filled
+from the `clients` row when it can be read, and the document still renders
+without it.
+
+The issuer block comes from `backend/.env`, all optional except the name:
+
+```
+COMPANY_NAME=Construcciones Lazo S.L.
+COMPANY_TAX_ID=B-12345678
+COMPANY_ADDRESS=Calle Mayor 14, 28013 Madrid
+COMPANY_EMAIL=hola@example.com
+COMPANY_PHONE=+34 600 000 000
+```
+
+The response carries `Content-Disposition` with a name like
+`budget-0001-kitchen-renovation.pdf`, and exposes that header to CORS so the
+browser can use the name.
 
 ## Agent tools
 

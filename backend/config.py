@@ -38,9 +38,26 @@ class Settings(BaseSettings):
     hermes_model: str = "hermes-agent"
     hermes_timeout_seconds: float = 180.0
 
+    # --- Gemini fallback ----------------------------------------------------
+    # Used when the Hermes Agent gateway cannot be reached. The budgeting tools
+    # then run in this process instead of inside Hermes.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    # Tried in order when the primary model answers 503 "high demand", which
+    # happens to any single model from time to time.
+    gemini_fallback_models: str = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+    gemini_timeout_seconds: float = 120.0
+
     # --- API ----------------------------------------------------------------
     # Comma-separated list of origins allowed by CORS.
     cors_origins: str = "http://localhost:3000"
+
+    # --- Company details, printed on the budget PDF -------------------------
+    company_name: str = "PreSupuesto"
+    company_tax_id: str = ""
+    company_address: str = ""
+    company_email: str = ""
+    company_phone: str = ""
 
     # --- Budget defaults ----------------------------------------------------
     default_currency: str = "EUR"
@@ -60,6 +77,21 @@ class Settings(BaseSettings):
     def hermes_configured(self) -> bool:
         """True when the Hermes Agent API server credentials are present."""
         return bool(self.hermes_api_url and self.hermes_api_key)
+
+    @property
+    def gemini_model_chain(self) -> list[str]:
+        """The models to try, in order, on the fallback path."""
+        chain = [self.gemini_model]
+        chain.extend(
+            model.strip() for model in self.gemini_fallback_models.split(",") if model.strip()
+        )
+        # Keep the order while dropping repeats.
+        return list(dict.fromkeys(chain))
+
+    @property
+    def gemini_configured(self) -> bool:
+        """True when the Gemini fallback can be used."""
+        return bool(self.gemini_api_key)
 
 
 @lru_cache(maxsize=1)
