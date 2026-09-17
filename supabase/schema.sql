@@ -231,3 +231,21 @@ insert into public.materials (code, name, description, category, unit, unit_pric
   ('MAT-PVC-001', 'PVC drain pipe 110 mm',       'Sanitation PVC pipe, 3 m length',              'plumbing',    'm',     4.25),
   ('MAT-ELE-001', 'Electrical cable 2.5 mm2',    'H07V-K flexible copper cable',                 'electrical',  'm',     0.65)
 on conflict (code) do nothing;
+
+-- -----------------------------------------------------------------------------
+-- Seed data: standard labor tasks with initial unit prices
+-- -----------------------------------------------------------------------------
+insert into public.standard_tasks (code, name, description, trade, unit, labor_unit_price, estimated_hours_per_unit) values
+  ('TSK-DEM-001', 'Partition demolition',   'Demolish a non-structural partition and remove debris', 'demolition',    'm2',  18.00, 0.60),
+  ('TSK-MAS-001', 'Brick wall construction','Build a brick wall including mortar',                   'masonry',       'm2',  32.00, 1.20),
+  ('TSK-MAS-002', 'Block wall construction','Build a concrete block wall',                           'masonry',       'm2',  28.00, 1.00),
+  ('TSK-PLA-001', 'Wall plastering',        'Apply and finish plaster on interior walls',            'plastering',    'm2',  16.50, 0.70),
+  ('TSK-SCR-001', 'Floor screed',           'Level a floor with mortar screed',                      'plastering',    'm2',  14.00, 0.50),
+  ('TSK-TIL-001', 'Floor tiling',           'Lay floor tiles including adhesive and grout',          'tiling',        'm2',  26.00, 1.00),
+  ('TSK-TIL-002', 'Wall tiling',            'Lay wall tiles including adhesive and grout',           'tiling',        'm2',  30.00, 1.10),
+  ('TSK-DRY-001', 'Plasterboard partition', 'Build a plasterboard partition with metal studs',       'drywall',       'm2',  34.00, 1.00),
+  ('TSK-PNT-001', 'Interior painting',      'Two coats of paint on prepared interior surfaces',      'painting',      'm2',   9.50, 0.30),
+  ('TSK-PLU-001', 'Plumbing point',         'Install a water supply and drain point',                'plumbing',      'unit',95.00, 3.00),
+  ('TSK-ELE-001', 'Electrical point',       'Install a socket or lighting point with wiring',        'electrical',    'unit',48.00, 1.50),
+  ('TSK-WPR-001', 'Waterproofing',          'Apply a liquid waterproofing membrane',                 'waterproofing', 'm2',  22.00, 0.60)
+on conflict (code) do nothing;

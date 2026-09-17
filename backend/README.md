@@ -96,6 +96,8 @@ which exercises the MCP tools without the web app.
 | GET | `/api/materials/{id}` | Read one |
 | PUT / PATCH | `/api/materials/{id}` | Update the fields present in the body |
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
+| GET | `/api/budgets` | Budget headers, newest first; `client_id`, `status`, `limit` |
+| GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
 | POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation |
 
 ## Agent tools

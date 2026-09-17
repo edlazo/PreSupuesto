@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from models import (
+    BudgetRead,
     ChatRequest,
     ChatResponse,
     DeletedResponse,
@@ -174,6 +175,41 @@ def delete_material(material_id: str) -> DeletedResponse:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Material not found")
 
     return DeletedResponse(id=material_id)
+
+
+# ---------------------------------------------------------------------------
+# Budgets (read only)
+#
+# Budgets are written by the agent through its tools. These endpoints let the
+# web app show what the agent produced.
+# ---------------------------------------------------------------------------
+@app.get("/api/budgets", response_model=list[BudgetRead], tags=["budgets"])
+def list_budgets(
+    client_id: Optional[str] = Query(default=None, description="Filter by client"),
+    status_filter: Optional[str] = Query(default=None, alias="status", description="Filter by status"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[BudgetRead]:
+    """List budget headers, most recent first. Lines are not included."""
+    try:
+        rows = supabase_service.list_budgets(client_id=client_id, status=status_filter, limit=limit)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return [BudgetRead.model_validate(row) for row in rows]
+
+
+@app.get("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])
+def get_budget(budget_id: str) -> BudgetRead:
+    """Read one budget with all of its lines."""
+    try:
+        row = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Budget not found")
+
+    return BudgetRead.model_validate(row)
 
 
 # ---------------------------------------------------------------------------
