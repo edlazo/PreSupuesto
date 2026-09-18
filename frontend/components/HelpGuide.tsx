@@ -14,9 +14,14 @@ const SECTIONS: Section[] = [
     summary: "Cargar materiales, corregir precios y actualizarlos por inflación.",
   },
   {
+    id: "presupuesto",
+    title: "Armar el presupuesto a mano",
+    summary: "Elegir del catálogo, poner la cantidad y sumar la línea.",
+  },
+  {
     id: "chat",
-    title: "Pedirle presupuestos al asistente",
-    summary: "Cómo escribirle para que calcule un trabajo y lo guarde.",
+    title: "Usar el asistente (opcional)",
+    summary: "Si preferís dictarlo, el asistente carga las líneas por vos.",
   },
   {
     id: "moneda",
@@ -49,7 +54,8 @@ export default function HelpGuide() {
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Cómo usar PreSupuesto</h1>
         <p className="mt-3 text-base text-muted">
           Una guía corta para armar presupuestos de obra sin vueltas. Si es la primera vez
-          que entrás, empezá por los materiales: todo lo demás sale de ahí.
+          que entrás, empezá por los materiales: todo lo demás sale de ahí. Los
+          presupuestos los armás a mano, y si querés te ayuda el asistente.
         </p>
       </header>
 
@@ -86,10 +92,14 @@ export default function HelpGuide() {
               Entrá a <strong>Materiales</strong> y tocá <Button>Agregar material</Button>.
             </li>
             <li>
-              Completá el <strong>código</strong> (por ejemplo <Code>MAT-CEM-001</Code>), el{" "}
-              <strong>nombre</strong>, la <strong>categoría</strong> (Albañilería, Pintura,
-              Materiales de agarre…), la <strong>unidad</strong> (bolsa, m2, u, balde) y el{" "}
-              <strong>precio unitario</strong>.
+              Completá el <strong>nombre</strong>, la <strong>categoría</strong>{" "}
+              (Albañilería, Pintura, Materiales de agarre…), la <strong>unidad</strong>{" "}
+              (bolsa, m2, u, balde) y el <strong>precio unitario</strong>.
+            </li>
+            <li>
+              El <strong>código</strong> podés dejarlo vacío: se genera solo según la
+              categoría, como <Code>MAT-ALB-004</Code> para Albañilería. Si preferís
+              usar el tuyo, escribilo y se respeta.
             </li>
             <li>
               Tocá <Button>Crear material</Button>. Ya queda disponible para los
@@ -150,11 +160,61 @@ export default function HelpGuide() {
         </GuideSection>
 
         {/* 2 ----------------------------------------------------------------- */}
-        <GuideSection id="chat" number={2} title="Pedirle presupuestos al asistente">
+        <GuideSection id="presupuesto" number={2} title="Armar el presupuesto a mano">
           <p>
-            En el <PageLink href="/">Escritorio</PageLink> tenés el chat a la izquierda y
-            el presupuesto a la derecha. Escribile como le hablarías a alguien del oficio:
-            él busca los precios en tu catálogo y hace las cuentas.
+            Esta es la forma principal de trabajar. En el{" "}
+            <PageLink href="/">Escritorio</PageLink>, arriba de todo está el formulario
+            para sumar líneas, y abajo el presupuesto que se va armando.
+          </p>
+
+          <Steps title="Para sumar una línea">
+            <li>
+              Escribí en <strong>Material o mano de obra</strong> lo que buscás: sirve el
+              nombre, la categoría o el código. Aparecen juntos los materiales y las
+              tareas de mano de obra.
+            </li>
+            <li>
+              Tocá el que quieras de la lista. Si apretás <Key>Enter</Key>, se elige el
+              primero.
+            </li>
+            <li>
+              Poné la <strong>cantidad</strong> en la unidad que te muestra (m2, u,
+              bolsa…). Para materiales podés sumar un <strong>desperdicio %</strong>.
+            </li>
+            <li>
+              Tocá <Button>Agregar al presupuesto</Button>. La línea aparece abajo y los
+              totales se recalculan solos.
+            </li>
+          </Steps>
+
+          <Callout title="Mientras armás">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                Antes de agregar, abajo del formulario ves cuánto suma esa línea.
+              </li>
+              <li>
+                Para sacar algo, tocá la <strong>✕</strong> a la derecha de la línea.
+              </li>
+              <li>
+                <Button>Nuevo</Button> arranca un presupuesto vacío; el anterior queda
+                guardado.
+              </li>
+              <li>
+                Los precios se copian del catálogo en el momento de agregar, así que un
+                aumento posterior no te cambia este presupuesto.
+              </li>
+            </ul>
+          </Callout>
+        </GuideSection>
+
+        {/* 3 ----------------------------------------------------------------- */}
+        <GuideSection id="chat" number={3} title="Usar el asistente (opcional)">
+          <p>
+            Si te resulta más cómodo dictarlo que cargarlo, abrí{" "}
+            <Button>🤖 Asistente IA</Button> en el Escritorio (en el celular es la
+            solapa <strong>🤖 Asistente</strong>). Escribile como le hablarías a alguien
+            del oficio: busca los precios en tu catálogo y hace las cuentas. Todo lo que
+            cargue va al mismo presupuesto que armás a mano.
           </p>
 
           <Steps title="Para calcular un trabajo">
@@ -168,7 +228,8 @@ export default function HelpGuide() {
               conversación, se acuerda de lo anterior.
             </li>
             <li>
-              Cuando esté bien, pedile que lo guarde. El presupuesto aparece a la derecha.
+              Cuando esté bien, pedile que lo guarde. Las líneas aparecen en el mismo
+              presupuesto, al lado de las que cargaste a mano.
             </li>
           </Steps>
 
@@ -215,8 +276,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 3 ----------------------------------------------------------------- */}
-        <GuideSection id="moneda" number={3} title="Pesos, dólares y dólar blue">
+        {/* 4 ----------------------------------------------------------------- */}
+        <GuideSection id="moneda" number={4} title="Pesos, dólares y dólar blue">
           <p>
             Arriba a la derecha, al lado del menú, está la cotización del{" "}
             <strong>dólar blue</strong> con la compra y la venta del momento. El botón
@@ -263,8 +324,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 4 ----------------------------------------------------------------- */}
-        <GuideSection id="pdf" number={4} title="Exportar y mandar el PDF">
+        {/* 5 ----------------------------------------------------------------- */}
+        <GuideSection id="pdf" number={5} title="Exportar y mandar el PDF">
           <p>
             El PDF es el documento que le mandás al cliente: sale con tus datos, los del
             cliente, el detalle de materiales y mano de obra, y el total.
@@ -313,8 +374,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 5 ----------------------------------------------------------------- */}
-        <GuideSection id="problemas" number={5} title="Si algo no funciona">
+        {/* 6 ----------------------------------------------------------------- */}
+        <GuideSection id="problemas" number={6} title="Si algo no funciona">
           <dl className="space-y-4">
             <Problem question="El asistente no contesta o tira error">
               Probá de nuevo en un rato. Si sigue igual, avisale a quien te instaló el

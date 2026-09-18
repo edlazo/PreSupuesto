@@ -59,6 +59,9 @@ CATEGORY_PREFIXES = {
     "herramientas": "HER",
 }
 
+# Stand-in client for budgets started before the customer is known.
+DEFAULT_CLIENT_NAME = "Consumidor final"
+
 # Words that never start a prefix when one has to be derived.
 PREFIX_STOPWORDS = {"de", "del", "la", "las", "el", "los", "y", "para", "con"}
 
@@ -354,6 +357,12 @@ def list_standard_tasks(
     return _execute(query, action="list standard tasks")
 
 
+def get_standard_task(task_id: str) -> Optional[dict[str, Any]]:
+    """Return a standard task by id, or None when it does not exist."""
+    query = get_client().table(STANDARD_TASKS_TABLE).select("*").eq("id", task_id).limit(1)
+    return _first(_execute(query, action="get standard task"))
+
+
 def get_standard_task_by_code(code: str) -> Optional[dict[str, Any]]:
     """Return a standard task by its code, or None when it does not exist."""
     query = get_client().table(STANDARD_TASKS_TABLE).select("*").eq("code", code).limit(1)
@@ -392,6 +401,73 @@ def create_client_record(payload: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Budgets
 # ---------------------------------------------------------------------------
+def get_or_create_default_client() -> dict[str, Any]:
+    """Return the fallback client a budget uses until a real one is chosen.
+
+    `budgets.client_id` is not nullable, but a budget usually starts before
+    anyone has asked the customer their name, so manual drafts hang off a
+    single "Consumidor final" row.
+    """
+    query = (
+        get_client()
+        .table(CLIENTS_TABLE)
+        .select("*")
+        .eq("full_name", DEFAULT_CLIENT_NAME)
+        .limit(1)
+    )
+    existing = _first(_execute(query, action="find the default client"))
+
+    if existing is not None:
+        return existing
+
+    return create_client_record({"full_name": DEFAULT_CLIENT_NAME})
+
+
+def add_budget_item(budget_id: str, item: dict[str, Any]) -> dict[str, Any]:
+    """Append one line to a budget and return the stored row.
+
+    The database recomputes the budget totals through its own trigger, so the
+    caller only has to read the budget back.
+    """
+    payload = dict(item, budget_id=budget_id)
+
+    if "sort_order" not in payload:
+        payload["sort_order"] = next_budget_item_order(budget_id)
+
+    query = get_client().table(BUDGET_ITEMS_TABLE).insert(payload)
+    row = _first(_execute(query, action="add budget item"))
+    if row is None:
+        raise SupabaseServiceError("add budget item returned no row")
+    return row
+
+
+def next_budget_item_order(budget_id: str) -> int:
+    """Return the sort order that puts a new line at the end of a budget."""
+    query = (
+        get_client()
+        .table(BUDGET_ITEMS_TABLE)
+        .select("sort_order")
+        .eq("budget_id", budget_id)
+        .order("sort_order", desc=True)
+        .limit(1)
+    )
+    last = _first(_execute(query, action="read the last sort order"))
+
+    return int(last["sort_order"]) + 1 if last else 0
+
+
+def delete_budget_item(budget_id: str, item_id: str) -> bool:
+    """Remove one line from a budget. False when the line does not exist."""
+    query = (
+        get_client()
+        .table(BUDGET_ITEMS_TABLE)
+        .delete()
+        .eq("id", item_id)
+        .eq("budget_id", budget_id)
+    )
+    return bool(_execute(query, action="delete budget item"))
+
+
 def create_budget(budget: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any]:
     """Create a budget with its lines and return the complete budget.
 

@@ -17,6 +17,8 @@ with no translation layer — there is one language to serve.
 | `app/materials/page.tsx` | Materials management view |
 | `app/ayuda/page.tsx` | User documentation, rendered by `components/HelpGuide.tsx` |
 | `components/BlueRateProvider.tsx` | Holds the blue dollar rate for the header and the budget card |
+| `components/BudgetWorkspaceProvider.tsx` | The budget both the form and the assistant write to |
+| `components/ManualEntryForm.tsx` | Pick a material or task, set the quantity, add the line |
 | `components/ChatPanel.tsx` | Conversation with the agent, session continuity |
 | `components/BudgetPreview.tsx` | Newest budget, grouped into materials / labor / other, with Export PDF |
 | `components/MaterialsTable.tsx` | Data table with search, inline price editing and delete |
@@ -45,8 +47,12 @@ The app is then at http://localhost:3000.
 
 ## How the two views work
 
-**Workspace** — every completed chat turn refetches the newest budget, so the
-card on the right fills in as soon as the agent stores one. It splits the lines
+**Workspace** — loading the budget by hand is the primary path: the entry form
+sits above the budget, and the assistant is a panel you open with "🤖 Asistente
+IA" (a tab on phones). Both write the same budget through
+`BudgetWorkspaceProvider`: the item endpoints answer with the whole budget, and
+a finished chat turn reloads it, so there is one source of truth rather than two
+half-synced copies. It splits the lines
 into materials, labor and other costs, and shows the subtotal, tax and total the
 database computed. "Export PDF" downloads the file the backend renders at
 `GET /api/budgets/{id}/pdf`, keeping its suggested filename; a failure shows as

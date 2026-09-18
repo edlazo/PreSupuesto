@@ -127,6 +127,10 @@ which exercises the MCP tools without the web app.
 | GET | `/api/materials/{id}` | Read one |
 | PUT / PATCH | `/api/materials/{id}` | Update the fields present in the body |
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
+| POST | `/api/budgets` | Start an empty budget. Without `client_id` it hangs off the stand-in "Consumidor final" client |
+| POST | `/api/budgets/{id}/items` | Append a line from a `material_id`, a `standard_task_id`, or free text. Answers with the whole budget |
+| DELETE | `/api/budgets/{id}/items/{item_id}` | Remove a line. Answers with the whole budget |
+| GET | `/api/standard-tasks` | Labor tasks catalog, for the manual entry form |
 | GET | `/api/budgets` | Budget headers, newest first; `client_id`, `status`, `limit` |
 | GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
 | GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename. `?currency=USD` converts it, `&rate=` sets the rate to apply |
@@ -145,6 +149,18 @@ deleted material never has its code handed to a different one.
 Two people creating a material at the same moment can land on the same number.
 The insert is retried with a fresh code on a unique violation rather than
 failing with a conflict; any other error is raised as-is.
+
+## Budgets, by hand or by agent
+
+A budget is built two ways and both write the same rows: the web app posts
+lines to `/api/budgets/{id}/items`, and the agent calls its `create_budget`
+tool. Catalog prices are copied onto the line either way, so a later price
+change leaves stored budgets alone.
+
+`budgets.client_id` is not nullable, but a budget usually starts before anyone
+has asked the customer their name. Creating one without a client attaches a
+single stand-in row named "Consumidor final"; set a real client when you have
+one.
 
 ## Currency
 

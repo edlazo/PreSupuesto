@@ -3,12 +3,15 @@
 import type {
   BlueRate,
   Budget,
+  BudgetCreate,
+  BudgetItemCreate,
   BulkPriceUpdateResult,
   ChatResponse,
   HealthResponse,
   Material,
   MaterialCreate,
   MaterialUpdate,
+  StandardTask,
 } from "./types";
 
 const API_BASE_URL = (
@@ -141,7 +144,35 @@ export function bulkUpdateMaterialPrices(
   });
 }
 
+// --- Standard tasks ---------------------------------------------------------
+export function listStandardTasks(search?: string): Promise<StandardTask[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return request<StandardTask[]>(`/api/standard-tasks${query}`);
+}
+
 // --- Budgets ----------------------------------------------------------------
+/** Start an empty budget. Without a client, the backend uses its stand-in one. */
+export function createBudget(payload: BudgetCreate = {}): Promise<Budget> {
+  return request<Budget>("/api/budgets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Append a line. The answer is the whole budget, with its new totals. */
+export function addBudgetItem(budgetId: string, payload: BudgetItemCreate): Promise<Budget> {
+  return request<Budget>(`/api/budgets/${budgetId}/items`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Remove a line. The answer is the whole budget, with its new totals. */
+export function deleteBudgetItem(budgetId: string, itemId: string): Promise<Budget> {
+  return request<Budget>(`/api/budgets/${budgetId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
 export function listBudgets(limit = 20): Promise<Budget[]> {
   return request<Budget[]>(`/api/budgets?limit=${limit}`);
 }

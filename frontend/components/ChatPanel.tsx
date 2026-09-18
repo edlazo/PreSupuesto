@@ -13,10 +13,12 @@ const SUGGESTIONS = [
 interface ChatPanelProps {
   /** Called after every completed turn so the budget preview can refresh. */
   onTurnComplete: () => void;
+  /** Hide the panel. Only offered on desktop, where it is optional. */
+  onClose?: () => void;
 }
 
 /** Conversation with the Hermes Agent. */
-export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
+export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -87,11 +89,11 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
       aria-label="Conversación con el agente"
       className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold">Agente Hermes</h2>
+      <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5 sm:py-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">🤖 Asistente IA</h2>
           <p className="text-xs text-muted">
-            Pedile precios, un cálculo o un presupuesto completo
+            Opcional: pedile precios, un cálculo o el presupuesto entero
           </p>
         </div>
         <span
@@ -116,6 +118,18 @@ export default function ChatPanel({ onTurnComplete }: ChatPanelProps) {
               ? "Sesión activa"
               : "Sesión nueva"}
         </span>
+
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar el asistente"
+            title="Cerrar el asistente"
+            className="hidden rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-surface-muted hover:text-foreground md:block"
+          >
+            ✕
+          </button>
+        ) : null}
       </header>
 
       <div ref={transcriptRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-5">

@@ -10,6 +10,10 @@ Endpoints:
 * `GET    /api/materials/{id}`   — read one material
 * `PUT|PATCH /api/materials/{id}`— update a material
 * `DELETE /api/materials/{id}`   — delete a material
+* `POST   /api/budgets`          — start a budget
+* `POST   /api/budgets/{id}/items` — append a line
+* `DELETE /api/budgets/{id}/items/{item_id}` — remove a line
+* `GET    /api/standard-tasks`   — labor tasks catalog
 * `GET    /api/currency/blue`    — current blue dollar rate
 * `POST   /api/chat`             — talk to the Hermes Agent
 """
@@ -17,7 +21,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -26,6 +31,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from models import (
     BlueRateResponse,
+    BudgetCreate,
+    BudgetItemCreate,
     BudgetRead,
     BulkPriceUpdateRequest,
     BulkPriceUpdateResponse,
@@ -36,6 +43,7 @@ from models import (
     MaterialCreate,
     MaterialRead,
     MaterialUpdate,
+    StandardTaskRead,
 )
 from services import agent_service, currency_service, pdf_service, supabase_service
 from services.agent_service import AgentError
@@ -48,6 +56,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 UNIQUE_VIOLATION = "23505"
+
+# `budget_items.quantity` is numeric(12, 3).
+QUANTITY_STEP = Decimal("0.001")
 FOREIGN_KEY_VIOLATION = "23503"
 
 app = FastAPI(
@@ -77,6 +88,70 @@ def _handle_supabase_error(exc: SupabaseServiceError) -> HTTPException:
             detail="El registro está usado por un presupuesto y no se puede modificar",
         )
     return HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.message)
+
+
+def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
+    """Turn a line request into a `budget_items` row, priced from the catalog.
+
+    Raises HTTPException for anything the caller can fix: an unknown id, a
+    free line missing its price.
+    """
+    quantity = Decimal(str(payload.quantity))
+
+    if payload.material_id and payload.standard_task_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Una línea no puede ser material y mano de obra a la vez",
+        )
+
+    if payload.material_id:
+        material = supabase_service.get_material(payload.material_id)
+        if material is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el material")
+
+        waste = Decimal(str(payload.waste_percent or 0))
+        quantity = quantity * (Decimal("1") + waste / Decimal("100"))
+
+        return {
+            "item_type": "material",
+            "material_id": material["id"],
+            "standard_task_id": None,
+            "description": payload.description or material["name"],
+            "unit": material["unit"],
+            "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
+            "unit_price": float(Decimal(str(material["unit_price"]))),
+        }
+
+    if payload.standard_task_id:
+        task = supabase_service.get_standard_task(payload.standard_task_id)
+        if task is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró la tarea")
+
+        return {
+            "item_type": "task",
+            "material_id": None,
+            "standard_task_id": task["id"],
+            "description": payload.description or task["name"],
+            "unit": task["unit"],
+            "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
+            "unit_price": float(Decimal(str(task["labor_unit_price"]))),
+        }
+
+    if not payload.description or not payload.unit or payload.unit_price is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Una línea libre necesita descripción, unidad y precio",
+        )
+
+    return {
+        "item_type": "custom",
+        "material_id": None,
+        "standard_task_id": None,
+        "description": payload.description,
+        "unit": payload.unit,
+        "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
+        "unit_price": float(payload.unit_price),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -218,10 +293,32 @@ def delete_material(material_id: str) -> DeletedResponse:
 
 
 # ---------------------------------------------------------------------------
-# Budgets (read only)
+# Standard tasks
+# ---------------------------------------------------------------------------
+@app.get("/api/standard-tasks", response_model=list[StandardTaskRead], tags=["tasks"])
+def list_standard_tasks(
+    search: Optional[str] = Query(default=None, description="Text to look for in the task name"),
+    trade: Optional[str] = Query(default=None, description="Exact trade"),
+    is_active: Optional[bool] = Query(default=True, description="Filter by active flag"),
+    limit: int = Query(default=200, ge=1, le=500),
+) -> list[StandardTaskRead]:
+    """List the labor tasks a budget line can be priced from."""
+    try:
+        rows = supabase_service.list_standard_tasks(
+            search=search, trade=trade, is_active=is_active, limit=limit
+        )
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return [StandardTaskRead.model_validate(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Budgets
 #
-# Budgets are written by the agent through its tools. These endpoints let the
-# web app show what the agent produced.
+# A budget can be built by hand from the web app or by the agent through its
+# tools; both write the same rows, so a budget can be started one way and
+# finished the other.
 # ---------------------------------------------------------------------------
 @app.get("/api/budgets", response_model=list[BudgetRead], tags=["budgets"])
 def list_budgets(
@@ -236,6 +333,106 @@ def list_budgets(
         raise _handle_supabase_error(exc) from exc
 
     return [BudgetRead.model_validate(row) for row in rows]
+
+
+@app.post(
+    "/api/budgets",
+    response_model=BudgetRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["budgets"],
+)
+def create_budget(payload: BudgetCreate) -> BudgetRead:
+    """Start an empty budget, ready for lines.
+
+    A budget needs a client, but one is rarely known when the first line is
+    priced, so leaving `client_id` out attaches the stand-in "Consumidor
+    final" client until a real one is set.
+    """
+    try:
+        client_id = payload.client_id
+
+        if client_id:
+            if supabase_service.get_client_record(client_id) is None:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="No se encontró el cliente"
+                )
+        else:
+            client_id = supabase_service.get_or_create_default_client()["id"]
+
+        header: dict[str, Any] = {
+            "client_id": client_id,
+            "title": payload.title,
+            "status": "draft",
+            "currency": settings.default_currency,
+            "tax_rate": (
+                payload.tax_rate if payload.tax_rate is not None else settings.default_tax_rate
+            ),
+        }
+        if payload.description:
+            header["description"] = payload.description
+        if payload.site_address:
+            header["site_address"] = payload.site_address
+        if payload.valid_until:
+            header["valid_until"] = payload.valid_until.isoformat()
+
+        budget = supabase_service.create_budget(header, [])
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return BudgetRead.model_validate(budget)
+
+
+@app.post(
+    "/api/budgets/{budget_id}/items",
+    response_model=BudgetRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["budgets"],
+)
+def add_budget_item(budget_id: str, payload: BudgetItemCreate) -> BudgetRead:
+    """Append a line to a budget and return the budget with its new totals.
+
+    Catalog prices are copied onto the line, so a later price change leaves
+    stored budgets alone — the same snapshot rule the agent's tools follow.
+    """
+    try:
+        if supabase_service.get_budget(budget_id) is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto"
+            )
+
+        item = _build_budget_item(payload)
+        supabase_service.add_budget_item(budget_id, item)
+        budget = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if budget is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return BudgetRead.model_validate(budget)
+
+
+@app.delete(
+    "/api/budgets/{budget_id}/items/{item_id}",
+    response_model=BudgetRead,
+    tags=["budgets"],
+)
+def delete_budget_item(budget_id: str, item_id: str) -> BudgetRead:
+    """Remove a line and return the budget with its new totals."""
+    try:
+        deleted = supabase_service.delete_budget_item(budget_id, item_id)
+
+        if not deleted:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el ítem")
+
+        budget = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if budget is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return BudgetRead.model_validate(budget)
 
 
 @app.get("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])

@@ -97,11 +97,18 @@ export default function MaterialFormDialog({
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Código</span>
+            <span className="font-medium">
+              Código{" "}
+              {material ? null : (
+                <span className="font-normal text-muted">(opcional)</span>
+              )}
+            </span>
             <input
-              required
+              // Only an existing material needs its code kept; a new one gets
+              // it from the category when this is left empty.
+              required={material !== null}
               value={values.code}
-              placeholder="MAT-CEM-001"
+              placeholder={material ? "MAT-ALB-001" : "(Autogenerado)"}
               onChange={(event) => update("code", event.target.value)}
               className={FIELD_CLASS}
             />
@@ -112,7 +119,7 @@ export default function MaterialFormDialog({
             <input
               required
               value={values.category}
-              placeholder="aglomerantes"
+              placeholder="Albañilería"
               onChange={(event) => update("category", event.target.value)}
               className={FIELD_CLASS}
             />
@@ -182,6 +189,13 @@ export default function MaterialFormDialog({
             </span>
           </label>
         </div>
+
+        {material ? null : (
+          <p className="mt-4 text-xs text-muted">
+            Si dejás el código vacío, se genera solo a partir de la categoría (por
+            ejemplo <span className="font-mono">MAT-ALB-004</span> para Albañilería).
+          </p>
+        )}
 
         {error ? (
           <p className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>

@@ -19,6 +19,7 @@ export interface Material {
 
 /** Payload accepted by POST /api/materials. */
 export interface MaterialCreate {
+  /** Left empty, the backend generates one from the category (MAT-ALB-004). */
   code: string;
   name: string;
   description?: string | null;
@@ -36,6 +37,46 @@ export interface BulkPriceUpdateResult {
   updated: number;
   percentage: number;
   materials: Material[];
+}
+
+/** A labor task from GET /api/standard-tasks. */
+export interface StandardTask {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  trade: string;
+  unit: string;
+  labor_unit_price: number;
+  estimated_hours_per_unit: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload accepted by POST /api/budgets. */
+export interface BudgetCreate {
+  title?: string;
+  client_id?: string | null;
+  description?: string | null;
+  site_address?: string | null;
+  tax_rate?: number | null;
+}
+
+/**
+ * Payload accepted by POST /api/budgets/{id}/items.
+ *
+ * Carry a material_id or a standard_task_id to price the line from the
+ * catalog, or description + unit + unit_price for a free line.
+ */
+export interface BudgetItemCreate {
+  material_id?: string | null;
+  standard_task_id?: string | null;
+  description?: string | null;
+  unit?: string | null;
+  unit_price?: number | null;
+  quantity: number;
+  waste_percent?: number;
 }
 
 export interface BudgetItem {

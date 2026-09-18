@@ -155,6 +155,41 @@ class BudgetItemRead(BaseModel):
     sort_order: int
 
 
+class BudgetCreate(BaseModel):
+    """Payload to start a budget, with or without lines."""
+
+    title: str = Field(default="Presupuesto nuevo", min_length=1, max_length=200)
+    client_id: Optional[str] = Field(
+        default=None,
+        description="Client the budget belongs to. A stand-in client is used when omitted",
+    )
+    description: Optional[str] = None
+    site_address: Optional[str] = None
+    tax_rate: Optional[float] = Field(default=None, ge=0, le=100)
+    valid_until: Optional[date] = None
+
+
+class BudgetItemCreate(BaseModel):
+    """Payload to append one line to a budget.
+
+    Give a `material_id` or a `standard_task_id` to price the line from the
+    catalog, or a description, unit and price to write a free line.
+    """
+
+    material_id: Optional[str] = None
+    standard_task_id: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=300)
+    unit: Optional[str] = Field(default=None, max_length=20)
+    unit_price: Optional[float] = Field(default=None, ge=0)
+    quantity: float = Field(gt=0, description="How much of it the job needs")
+    waste_percent: float = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="Extra percentage added to the quantity of a material",
+    )
+
+
 class BudgetRead(BaseModel):
     """A budget header with its computed totals."""
 

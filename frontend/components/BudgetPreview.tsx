@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useBlueRate } from "@/components/BlueRateProvider";
-import { ApiError, downloadBudgetPdf, getLatestBudget } from "@/lib/api";
+import { useBudgetWorkspace } from "@/components/BudgetWorkspaceProvider";
+import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
 
@@ -25,11 +26,6 @@ const STATUS_STYLES: Record<BudgetStatus, string> = {
   rejected: "bg-danger-soft text-danger",
   expired: "bg-surface-muted text-muted",
 };
-
-interface BudgetPreviewProps {
-  /** Changing this value triggers a refetch of the latest budget. */
-  refreshToken: number;
-}
 
 /**
  * Price a budget in dollars at the given rate.
@@ -67,44 +63,18 @@ function sumLines(items: BudgetItem[]): number {
   return items.reduce((total, item) => total + item.line_total, 0);
 }
 
-/** Live view of the most recent budget the agent stored. */
-export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
-  const [budget, setBudget] = useState<Budget | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Bumped by the Refresh button; `refreshToken` is bumped by the chat panel.
-  const [manualToken, setManualToken] = useState(0);
+/**
+ * The budget being worked on, however its lines got there: added by hand
+ * from the form, or written by the assistant.
+ */
+export default function BudgetPreview() {
+  const { budget, isLoading, isSaving, error, removeItem, reload, startNewBudget } =
+    useBudgetWorkspace();
   const [isExporting, setIsExporting] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("ARS");
   const { rate: blueRate } = useBlueRate();
   // Kept apart from `error`, so a failed export does not replace the budget.
   const [exportError, setExportError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // `isActive` drops the response of a request that a newer one has replaced.
-    let isActive = true;
-
-    getLatestBudget()
-      .then((latest) => {
-        if (!isActive) return;
-        setBudget(latest);
-        setError(null);
-      })
-      .catch((caught: unknown) => {
-        if (!isActive) return;
-        setError(
-          caught instanceof ApiError ? caught.message : "No se pudo cargar el presupuesto.",
-        );
-      })
-      .finally(() => {
-        if (isActive) setIsLoading(false);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [refreshToken, manualToken]);
 
   // The budget is stored in pesos; dollars are a converted view of it.
   const storedCurrency = (budget?.currency ?? "ARS").toUpperCase();
@@ -114,6 +84,15 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
     () => (budget && isConverted ? convertBudget(budget, sellRate as number) : budget),
     [budget, isConverted, sellRate],
   );
+
+  /** Remove a line, asking first: the budget is stored, not a draft. */
+  function handleRemove(itemId: string) {
+    const item = budget?.items.find((line) => line.id === itemId);
+
+    if (item && window.confirm(`¿Quitar "${item.description}" del presupuesto?`)) {
+      void removeItem(itemId);
+    }
+  }
 
   /** Download the budget as a PDF rendered by the backend. */
   async function exportPdf() {
@@ -191,13 +170,19 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
 
           <button
             type="button"
-            onClick={() => {
-              setIsLoading(true);
-              setManualToken((current) => current + 1);
-            }}
+            onClick={reload}
             className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
           >
             Actualizar
+          </button>
+          <button
+            type="button"
+            onClick={() => void startNewBudget()}
+            disabled={isSaving}
+            title="Empezar un presupuesto vacío"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            Nuevo
           </button>
           <button
             type="button"
@@ -223,10 +208,10 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
           <div className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</div>
         ) : !budget || !view ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <p className="text-sm font-medium">Todavía no hay presupuestos</p>
+            <p className="text-sm font-medium">Todavía no hay nada cargado</p>
             <p className="mt-1 max-w-xs text-sm text-muted">
-              Pedile uno al agente y va a aparecer acá con sus materiales, la mano de
-              obra y los totales.
+              Agregá materiales y mano de obra desde el formulario de arriba, o pedile
+              al asistente que lo arme por vos.
             </p>
           </div>
         ) : (
@@ -254,9 +239,27 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
               <p className="text-sm text-muted">{budget.description}</p>
             ) : null}
 
-            <ItemGroup title="Materiales" items={materials} currency={currency} />
-            <ItemGroup title="Mano de obra" items={labor} currency={currency} />
-            <ItemGroup title="Otros costos" items={other} currency={currency} />
+            <ItemGroup
+              title="Materiales"
+              items={materials}
+              currency={currency}
+              onRemove={handleRemove}
+              isSaving={isSaving}
+            />
+            <ItemGroup
+              title="Mano de obra"
+              items={labor}
+              currency={currency}
+              onRemove={handleRemove}
+              isSaving={isSaving}
+            />
+            <ItemGroup
+              title="Otros costos"
+              items={other}
+              currency={currency}
+              onRemove={handleRemove}
+              isSaving={isSaving}
+            />
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
               <Row label="Materiales" value={formatCurrency(sumLines(materials), currency)} />
@@ -304,10 +307,14 @@ function ItemGroup({
   title,
   items,
   currency,
+  onRemove,
+  isSaving,
 }: {
   title: string;
   items: BudgetItem[];
   currency: string | undefined;
+  onRemove: (itemId: string) => void;
+  isSaving: boolean;
 }) {
   if (items.length === 0) {
     return null;
@@ -328,8 +335,20 @@ function ItemGroup({
                 {formatCurrency(item.unit_price, currency)}
               </p>
             </div>
-            <span className="shrink-0 whitespace-nowrap text-sm font-medium">
-              {formatCurrency(item.line_total, currency)}
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="whitespace-nowrap text-sm font-medium">
+                {formatCurrency(item.line_total, currency)}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                disabled={isSaving}
+                aria-label={`Quitar ${item.description}`}
+                title="Quitar del presupuesto"
+                className="no-print rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+              >
+                ✕
+              </button>
             </span>
           </li>
         ))}
