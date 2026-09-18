@@ -70,7 +70,9 @@ body {
     background: #ffffff;
   }
 
-  body :not(.print-area):not(.print-area *) {
+  /* Only pages holding a print area hide their chrome; anywhere else — the
+     help guide, for instance — Ctrl+P prints the page as it reads. */
+  body:has(.print-area) :not(.print-area):not(.print-area *) {
     visibility: hidden;
   }
 

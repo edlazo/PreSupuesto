@@ -15,6 +15,7 @@ with no translation layer — there is one language to serve.
 | `app/layout.tsx` | Shared shell: header navbar with branding and navigation |
 | `app/page.tsx` | Workspace: chat on the left, live budget preview on the right |
 | `app/materials/page.tsx` | Materials management view |
+| `app/ayuda/page.tsx` | User documentation, rendered by `components/HelpGuide.tsx` |
 | `components/BlueRateProvider.tsx` | Holds the blue dollar rate for the header and the budget card |
 | `components/ChatPanel.tsx` | Conversation with the agent, session continuity |
 | `components/BudgetPreview.tsx` | Newest budget, grouped into materials / labor / other, with Export PDF |
@@ -60,6 +61,18 @@ be edited in place by clicking it, and the pencil-free row actions open the full
 form or delete the row. A material already used by a budget cannot be deleted;
 the backend answers 409 and the table shows that message, so deactivate it
 instead.
+
+## Help guide
+
+`/ayuda` is the user documentation: how to keep the catalog priced, how to ask
+the assistant for a budget, what the ARS / USD toggle does, and how to send the
+PDF over WhatsApp. It is a server component with no client JavaScript — plain
+content that stays readable, searchable and printable — and it is written for
+someone who has never used the app, not for a developer.
+
+Keep it honest when the interface changes: it names real buttons ("Aplicar",
+"Exportar PDF"), and a guide that describes buttons that no longer exist is
+worse than no guide.
 
 ## Currency
 
