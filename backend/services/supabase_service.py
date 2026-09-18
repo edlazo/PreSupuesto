@@ -9,7 +9,9 @@ synchronous endpoints in a thread pool.
 from __future__ import annotations
 
 import logging
+import re
 import threading
+import unicodedata
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Optional
 
@@ -27,6 +29,38 @@ STANDARD_TASKS_TABLE = "standard_tasks"
 CLIENTS_TABLE = "clients"
 BUDGETS_TABLE = "budgets"
 BUDGET_ITEMS_TABLE = "budget_items"
+
+# PostgreSQL's unique_violation, raised when a code is already taken.
+UNIQUE_VIOLATION = "23505"
+
+# --- Generated material codes ------------------------------------------------
+# Codes read MAT-<CATEGORY>-<NUMBER>, e.g. MAT-ALB-004.
+CODE_NAMESPACE = "MAT"
+FALLBACK_PREFIX = "GEN"
+CODE_GENERATION_ATTEMPTS = 5
+
+# Chosen prefixes for the categories the catalog ships with. Keys are accent
+# free and lowercase, which is how `build_category_prefix` looks them up.
+CATEGORY_PREFIXES = {
+    "albanileria": "ALB",
+    "pintura": "PIN",
+    "materiales de agarre": "AGA",
+    "aridos": "ARI",
+    "hormigon": "HOR",
+    "hierros": "HIE",
+    "durlock": "DUR",
+    "pisos y revestimientos": "PIS",
+    "aislaciones": "AIS",
+    "impermeabilizacion": "IMP",
+    "sanitarios": "SAN",
+    "electricidad": "ELE",
+    "plomeria": "PLO",
+    "carpinteria": "CAR",
+    "herramientas": "HER",
+}
+
+# Words that never start a prefix when one has to be derived.
+PREFIX_STOPWORDS = {"de", "del", "la", "las", "el", "los", "y", "para", "con"}
 
 
 class SupabaseServiceError(Exception):
@@ -86,6 +120,15 @@ def _first(rows: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
     return rows[0] if rows else None
 
 
+def _strip_accents(text: str) -> str:
+    """Fold "Albañilería" to "Albanileria", so lookups are accent free."""
+    return "".join(
+        character
+        for character in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(character)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Materials
 # ---------------------------------------------------------------------------
@@ -123,8 +166,79 @@ def get_material_by_code(code: str) -> Optional[dict[str, Any]]:
     return _first(_execute(query, action="get material by code"))
 
 
+def build_category_prefix(category: str) -> str:
+    """Return the three-letter code for a category, e.g. "Albañilería" -> "ALB".
+
+    Known categories have a chosen prefix; anything else falls back to the
+    first letters of the first meaningful word, so a category invented later
+    still produces a usable code.
+    """
+    normalized = _strip_accents(str(category or "")).strip().lower()
+
+    if normalized in CATEGORY_PREFIXES:
+        return CATEGORY_PREFIXES[normalized]
+
+    words = [word for word in re.split(r"[^a-z0-9]+", normalized) if word and word not in PREFIX_STOPWORDS]
+    if not words:
+        return FALLBACK_PREFIX
+
+    # Pad short words so the prefix is always three characters wide.
+    return words[0][:3].upper().ljust(3, "X")
+
+
+def generate_material_code(category: str) -> str:
+    """Return the next free code for a category, e.g. "MAT-ALB-004".
+
+    Numbering is per category and continues after the highest number in use,
+    so a deleted material never has its code handed to a different one.
+    """
+    prefix = build_category_prefix(category)
+    pattern = f"{CODE_NAMESPACE}-{prefix}-"
+
+    query = get_client().table(MATERIALS_TABLE).select("code").like("code", f"{pattern}%")
+    rows = _execute(query, action="list codes for a category")
+
+    matcher = re.compile(rf"^{re.escape(pattern)}(\d+)$")
+    numbers = [
+        int(match.group(1))
+        for row in rows
+        if (match := matcher.match(str(row.get("code") or "")))
+    ]
+
+    return f"{pattern}{max(numbers, default=0) + 1:03d}"
+
+
 def create_material(payload: dict[str, Any]) -> dict[str, Any]:
-    """Insert a material and return the stored row."""
+    """Insert a material and return the stored row.
+
+    A missing or empty code is generated from the category. Two people adding
+    a material at the same moment can pick the same number, so a rejected code
+    is regenerated and retried rather than surfacing as a conflict.
+    """
+    payload = dict(payload)
+    code = str(payload.get("code") or "").strip()
+
+    if code:
+        payload["code"] = code
+        return _insert_material(payload)
+
+    for attempt in range(CODE_GENERATION_ATTEMPTS):
+        payload["code"] = generate_material_code(payload.get("category", ""))
+
+        try:
+            return _insert_material(payload)
+        except SupabaseServiceError as exc:
+            is_last_attempt = attempt + 1 >= CODE_GENERATION_ATTEMPTS
+            if exc.code != UNIQUE_VIOLATION or is_last_attempt:
+                raise
+            logger.warning("Generated code %s was taken, retrying", payload["code"])
+
+    # Unreachable: the loop either returns or raises.
+    raise SupabaseServiceError("create material exhausted its code attempts")
+
+
+def _insert_material(payload: dict[str, Any]) -> dict[str, Any]:
+    """Insert one material row and return it."""
     query = get_client().table(MATERIALS_TABLE).insert(payload)
     row = _first(_execute(query, action="create material"))
     if row is None:

@@ -122,7 +122,7 @@ which exercises the MCP tools without the web app.
 | --- | --- | --- |
 | GET | `/health` | Configuration status |
 | GET | `/api/materials` | `search`, `category`, `is_active`, `limit`, `offset`; total count in the `X-Total-Count` header |
-| POST | `/api/materials` | Create |
+| POST | `/api/materials` | Create. The `code` may be omitted: it is then generated from the category, e.g. `MAT-ALB-004` |
 | POST | `/api/materials/bulk-update-price` | Shift prices by a percentage: `{"percentage": 12.5, "category": "Albañilería", "only_active": true}`. A negative percentage lowers them |
 | GET | `/api/materials/{id}` | Read one |
 | PUT / PATCH | `/api/materials/{id}` | Update the fields present in the body |
@@ -132,6 +132,19 @@ which exercises the MCP tools without the web app.
 | GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename. `?currency=USD` converts it, `&rate=` sets the rate to apply |
 | GET | `/api/currency/blue` | Current blue dollar buy and sell prices. `?refresh=true` skips the cache |
 | POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini` |
+
+## Material codes
+
+Codes read `MAT-<CATEGORY>-<NUMBER>`. Leaving the code out of a create request
+has `supabase_service.generate_material_code()` build one: the category maps to
+a three-letter prefix (`Albañilería` → `ALB`, `Pintura` → `PIN`; an unknown
+category falls back to the first letters of its first meaningful word), and the
+number continues after the highest one already used in that category, so a
+deleted material never has its code handed to a different one.
+
+Two people creating a material at the same moment can land on the same number.
+The insert is retried with a fresh code on a unique violation rather than
+failing with a conflict; any other error is raised as-is.
 
 ## Currency
 

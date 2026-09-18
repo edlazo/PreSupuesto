@@ -28,7 +28,17 @@ class MaterialBase(BaseModel):
 
 
 class MaterialCreate(MaterialBase):
-    """Payload to create a material."""
+    """Payload to create a material.
+
+    The code may be left out: the backend then generates one from the category,
+    e.g. MAT-ALB-004 for Albañilería.
+    """
+
+    code: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Unique catalog code. Generated from the category when omitted",
+    )
 
 
 class MaterialUpdate(BaseModel):
