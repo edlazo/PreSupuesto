@@ -27,7 +27,7 @@ export default function Navbar() {
           </span>
           <span className="hidden min-w-0 flex-col leading-tight sm:flex">
             <span className="truncate text-base font-semibold tracking-tight">PreSupuesto</span>
-            <span className="hidden text-xs text-muted sm:block">
+            <span className="hidden text-xs text-muted lg:block">
               Presupuestos de obra, armados por un agente
             </span>
           </span>
@@ -46,7 +46,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={isActive ? "page" : undefined}
-                className={`rounded-lg px-1.5 py-2 text-sm font-medium transition-colors sm:px-3 ${
+                className={`rounded-lg px-1.5 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${
                   isActive
                     ? "bg-primary-soft text-primary"
                     : "text-muted hover:bg-surface-muted hover:text-foreground"
@@ -69,7 +69,7 @@ function BlueDollarWidget() {
 
   return (
     <div
-      className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-surface-muted px-1.5 py-1.5 sm:gap-2 sm:px-2.5"
+      className="hidden shrink-0 items-center gap-1 rounded-lg border border-border bg-surface-muted px-1.5 py-1.5 min-[360px]:flex sm:gap-2 sm:px-2.5"
       title={
         error
           ? error
@@ -86,14 +86,14 @@ function BlueDollarWidget() {
         <span className="text-xs font-medium text-danger">Sin cotización</span>
       ) : rate ? (
         <span className="flex items-baseline gap-2 whitespace-nowrap text-xs">
-          <span className="hidden text-muted sm:inline">
+          <span className="hidden text-muted lg:inline">
             Compra{" "}
             <span className="font-semibold text-foreground">
               {formatCurrency(rate.buy, "ARS")}
             </span>
           </span>
           <span className="text-muted">
-            <span className="hidden sm:inline">Venta </span>
+            <span className="hidden lg:inline">Venta </span>
             <span className="sr-only">Dólar blue venta </span>
             <span className="font-semibold text-foreground">
               {formatCurrency(rate.sell, "ARS")}

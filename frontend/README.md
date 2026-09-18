@@ -74,6 +74,23 @@ Keep it honest when the interface changes: it names real buttons ("Aplicar",
 "Exportar PDF"), and a guide that describes buttons that no longer exist is
 worse than no guide.
 
+## Small screens
+
+The interface is used on site, from a phone, so every view is checked from
+320px up:
+
+* **Workspace** — the chat and the budget become tabs ("Chat" / "Presupuesto")
+  below `md` and sit side by side from `md` up. The inactive panel is hidden
+  with a class rather than unmounted, so switching tabs never loses the
+  conversation or a half-typed message, and a finished turn switches to the
+  budget so the result is not missed.
+* **Materials** — the seven-column table is unreadable on a phone, so the same
+  rows render as cards below `md`, with the price still editable by tapping it.
+  The table (in its horizontal scroll container) returns from `md` up.
+* **Header** — the rate widget and the links tighten in stages: both rates and
+  the tagline appear at `lg`, the sell rate alone below that, and under 360px
+  the widget steps aside for the links.
+
 ## Currency
 
 `NEXT_PUBLIC_CURRENCY` (default `ARS`) drives `lib/format.ts`, which prints

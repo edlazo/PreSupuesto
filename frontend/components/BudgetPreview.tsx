@@ -150,7 +150,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
       aria-label="Vista previa del presupuesto"
       className="print-area flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
-      <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+      <header className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-5 sm:py-4">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Vista previa del presupuesto</h2>
           <p className="truncate text-xs text-muted">
@@ -160,7 +160,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
           </p>
         </div>
 
-        <div className="no-print flex shrink-0 items-center gap-2">
+        <div className="no-print flex shrink-0 flex-wrap items-center gap-2">
           <div
             role="group"
             aria-label="Moneda del presupuesto"
@@ -210,7 +210,7 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
         {exportError ? (
           <p className="no-print mb-4 rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">
             {exportError}
@@ -292,9 +292,9 @@ export default function BudgetPreview({ refreshToken }: BudgetPreviewProps) {
 /** One labelled amount in the totals list. */
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between text-muted">
-      <dt>{label}</dt>
-      <dd className="font-medium text-foreground">{value}</dd>
+    <div className="flex items-center justify-between gap-3 text-muted">
+      <dt className="min-w-0">{label}</dt>
+      <dd className="whitespace-nowrap font-medium text-foreground">{value}</dd>
     </div>
   );
 }
@@ -322,13 +322,13 @@ function ItemGroup({
         {items.map((item) => (
           <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
             <div className="min-w-0">
-              <p className="truncate text-sm">{item.description}</p>
+              <p className="text-sm break-words">{item.description}</p>
               <p className="text-xs text-muted">
                 {formatQuantity(item.quantity)} {item.unit} ×{" "}
                 {formatCurrency(item.unit_price, currency)}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-medium">
+            <span className="shrink-0 whitespace-nowrap text-sm font-medium">
               {formatCurrency(item.line_total, currency)}
             </span>
           </li>

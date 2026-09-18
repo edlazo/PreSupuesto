@@ -121,6 +121,17 @@ export default function MaterialsTable() {
     }
   }
 
+  /** Ask before deleting, then delete. Shared by the table and the cards. */
+  function confirmDelete(material: Material) {
+    const confirmed = window.confirm(
+      `¿Eliminar "${material.name}"? Los materiales que ya usa un presupuesto no se pueden eliminar: desactivalos en su lugar.`,
+    );
+
+    if (confirmed) {
+      void handleDelete(material);
+    }
+  }
+
   /** Save a price edited inline in the table. */
   async function handlePriceChange(material: Material, price: number) {
     try {
@@ -189,7 +200,7 @@ export default function MaterialsTable() {
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">Materiales</h1>
           <p className="text-sm text-muted">
             El catálogo con el que el agente calcula los presupuestos.{" "}
@@ -293,7 +304,75 @@ export default function MaterialsTable() {
         <p className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
+      {/* A seven-column table cannot be read on a phone, so the same rows
+          are rendered as cards below `md`. */}
+      <ul className="space-y-3 md:hidden">
+        {isLoading && materials.length === 0 ? (
+          <li className="rounded-xl border border-border bg-surface px-4 py-10 text-center text-sm text-muted">
+            Cargando materiales…
+          </li>
+        ) : materials.length === 0 ? (
+          <li className="rounded-xl border border-border bg-surface px-4 py-10 text-center text-sm text-muted">
+            No hay materiales que coincidan con la búsqueda.
+          </li>
+        ) : (
+          materials.map((material) => (
+            <li
+              key={material.id}
+              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-muted">{material.code}</p>
+                  <p className="mt-0.5 font-medium break-words">{material.name}</p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                    material.is_active
+                      ? "bg-success-soft text-success"
+                      : "bg-surface-muted text-muted"
+                  }`}
+                >
+                  {material.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+
+              <p className="mt-2 text-xs text-muted">
+                {material.category} · por {material.unit}
+              </p>
+
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+                <PriceCell
+                  material={material}
+                  onSave={(price) => handlePriceChange(material, price)}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDialogError(null);
+                      setDialog({ mode: "edit", material });
+                    }}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pendingDeleteId === material.id}
+                    onClick={() => confirmDelete(material)}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:border-danger disabled:opacity-50"
+                  >
+                    {pendingDeleteId === material.id ? "Eliminando…" : "Eliminar"}
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface shadow-sm md:block">
         <table className="w-full min-w-[42rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
@@ -363,15 +442,7 @@ export default function MaterialsTable() {
                       <button
                         type="button"
                         disabled={pendingDeleteId === material.id}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `¿Eliminar "${material.name}"? Los materiales que ya usa un presupuesto no se pueden eliminar: desactivalos en su lugar.`,
-                            )
-                          ) {
-                            void handleDelete(material);
-                          }
-                        }}
+                        onClick={() => confirmDelete(material)}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:border-danger disabled:opacity-50"
                       >
                         {pendingDeleteId === material.id ? "Eliminando…" : "Eliminar"}
