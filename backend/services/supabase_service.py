@@ -456,6 +456,24 @@ def next_budget_item_order(budget_id: str) -> int:
     return int(last["sort_order"]) + 1 if last else 0
 
 
+def update_budget_item(
+    budget_id: str, item_id: str, payload: dict[str, Any]
+) -> Optional[dict[str, Any]]:
+    """Change one line of a budget and return the stored row.
+
+    `line_total` is a generated column and the budget totals come from a
+    trigger, so writing the quantity is enough for both to follow.
+    """
+    query = (
+        get_client()
+        .table(BUDGET_ITEMS_TABLE)
+        .update(payload)
+        .eq("id", item_id)
+        .eq("budget_id", budget_id)
+    )
+    return _first(_execute(query, action="update budget item"))
+
+
 def delete_budget_item(budget_id: str, item_id: str) -> bool:
     """Remove one line from a budget. False when the line does not exist."""
     query = (

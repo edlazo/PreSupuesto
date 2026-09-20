@@ -5,6 +5,7 @@ import type {
   Budget,
   BudgetCreate,
   BudgetItemCreate,
+  BudgetItemUpdate,
   BudgetUpdate,
   BulkPriceUpdateResult,
   ChatResponse,
@@ -183,12 +184,25 @@ export function addBudgetItem(budgetId: string, payload: BudgetItemCreate): Prom
   });
 }
 
+/** Change a line. The answer is the whole budget, with its new totals. */
+export function updateBudgetItem(
+  budgetId: string,
+  itemId: string,
+  payload: BudgetItemUpdate,
+): Promise<Budget> {
+  return request<Budget>(`/api/budgets/${budgetId}/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Remove a line. The answer is the whole budget, with its new totals. */
 export function deleteBudgetItem(budgetId: string, itemId: string): Promise<Budget> {
   return request<Budget>(`/api/budgets/${budgetId}/items/${itemId}`, {
     method: "DELETE",
   });
 }
+
 /** Change a budget header — its client, its title, its status. */
 export function updateBudget(budgetId: string, payload: BudgetUpdate): Promise<Budget> {
   return request<Budget>(`/api/budgets/${budgetId}`, {

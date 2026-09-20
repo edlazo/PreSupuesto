@@ -18,6 +18,7 @@ import {
   getBudget,
   getLatestBudget,
   updateBudget,
+  updateBudgetItem,
 } from "@/lib/api";
 import type { Budget, BudgetItemCreate } from "@/lib/types";
 
@@ -31,6 +32,8 @@ interface BudgetWorkspaceValue {
   /** Append a line, starting a budget first when there is none yet. */
   addItem: (item: BudgetItemCreate) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
+  /** Correct how much of a line the job needs. */
+  updateItemQuantity: (itemId: string, quantity: number) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
   assignClient: (clientId: string) => Promise<void>;
   /** Put the newest stored budget on screen — what the agent just wrote. */
@@ -138,6 +141,26 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const updateItemQuantity = useCallback(
+    async (itemId: string, quantity: number) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudgetItem(budget.id, itemId, { quantity }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar la cantidad.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const assignClient = useCallback(
     async (clientId: string) => {
       if (!budget) return;
@@ -183,6 +206,7 @@ export default function BudgetWorkspaceProvider({
       error,
       addItem,
       removeItem,
+      updateItemQuantity,
       assignClient,
       reload,
       startNewBudget,
@@ -195,6 +219,7 @@ export default function BudgetWorkspaceProvider({
       error,
       addItem,
       removeItem,
+      updateItemQuantity,
       assignClient,
       reload,
       startNewBudget,

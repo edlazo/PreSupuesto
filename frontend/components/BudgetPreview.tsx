@@ -75,6 +75,7 @@ export default function BudgetPreview() {
     isSaving,
     error,
     removeItem,
+    updateItemQuantity,
     assignClient,
     reload,
     startNewBudget,
@@ -101,6 +102,11 @@ export default function BudgetPreview() {
     if (item && window.confirm(`¿Quitar "${item.description}" del presupuesto?`)) {
       void removeItem(itemId);
     }
+  }
+
+  /** Correct how much of a line the job needs. */
+  function handleQuantityChange(itemId: string, quantity: number) {
+    void updateItemQuantity(itemId, quantity);
   }
 
   /** Download the budget as a PDF rendered by the backend. */
@@ -259,6 +265,7 @@ export default function BudgetPreview() {
               items={materials}
               currency={currency}
               onRemove={handleRemove}
+              onQuantityChange={handleQuantityChange}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -266,6 +273,7 @@ export default function BudgetPreview() {
               items={labor}
               currency={currency}
               onRemove={handleRemove}
+              onQuantityChange={handleQuantityChange}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -273,6 +281,7 @@ export default function BudgetPreview() {
               items={other}
               currency={currency}
               onRemove={handleRemove}
+              onQuantityChange={handleQuantityChange}
               isSaving={isSaving}
             />
 
@@ -323,12 +332,14 @@ function ItemGroup({
   items,
   currency,
   onRemove,
+  onQuantityChange,
   isSaving,
 }: {
   title: string;
   items: BudgetItem[];
   currency: string | undefined;
   onRemove: (itemId: string) => void;
+  onQuantityChange: (itemId: string, quantity: number) => void;
   isSaving: boolean;
 }) {
   if (items.length === 0) {
@@ -345,9 +356,15 @@ function ItemGroup({
           <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm break-words">{item.description}</p>
-              <p className="text-xs text-muted">
-                {formatQuantity(item.quantity)} {item.unit} ×{" "}
-                {formatCurrency(item.unit_price, currency)}
+              <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted">
+                <QuantityCell
+                  item={item}
+                  isSaving={isSaving}
+                  onSave={(quantity) => onQuantityChange(item.id, quantity)}
+                />
+                <span>
+                  {item.unit} × {formatCurrency(item.unit_price, currency)}
+                </span>
               </p>
             </div>
             <span className="flex shrink-0 items-center gap-2">
@@ -369,5 +386,80 @@ function ItemGroup({
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Quantity that turns into an input when clicked.
+ *
+ * The number shown is the final one, waste included, so what is typed here
+ * replaces it rather than being marked up again.
+ */
+function QuantityCell({
+  item,
+  isSaving,
+  onSave,
+}: {
+  item: BudgetItem;
+  isSaving: boolean;
+  onSave: (quantity: number) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  // Seeded when editing starts, so a quantity changed elsewhere is picked up
+  // without syncing props into state.
+  const [value, setValue] = useState("");
+
+  function commit() {
+    setIsEditing(false);
+    const quantity = Number(value.replace(",", "."));
+
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity === item.quantity) {
+      return;
+    }
+
+    onSave(quantity);
+  }
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={() => {
+          setValue(String(item.quantity));
+          setIsEditing(true);
+        }}
+        title="Tocá para cambiar la cantidad"
+        aria-label={`Cantidad de ${item.description}`}
+        // Negative margins keep the line height while the tap target grows.
+        className="-mx-1.5 -my-1 rounded-md px-1.5 py-1 tabular-nums underline decoration-dotted decoration-muted/60 underline-offset-2 transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-50"
+      >
+        {formatQuantity(item.quantity)}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="number"
+      min={0}
+      step="0.001"
+      value={value}
+      aria-label={`Cantidad de ${item.description}`}
+      // Select the current quantity so typing replaces it.
+      onFocus={(event) => event.target.select()}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          commit();
+        }
+        if (event.key === "Escape") {
+          setIsEditing(false);
+        }
+      }}
+      className="no-print w-20 rounded-md border border-primary bg-background px-1.5 py-0.5 text-xs outline-none"
+    />
   );
 }

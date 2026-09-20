@@ -193,6 +193,11 @@ export default function HelpGuide() {
                 Antes de agregar, abajo del formulario ves cuánto suma esa línea.
               </li>
               <li>
+                Para corregir una cantidad, tocá el número de la línea (el que está
+                subrayado con puntitos), escribí el nuevo y apretá <Key>Enter</Key>. Con{" "}
+                <Key>Esc</Key> queda como estaba.
+              </li>
+              <li>
                 Para sacar algo, tocá la <strong>✕</strong> a la derecha de la línea.
               </li>
               <li>

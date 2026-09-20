@@ -203,6 +203,15 @@ class BudgetItemCreate(BaseModel):
     )
 
 
+class BudgetItemUpdate(BaseModel):
+    """Payload to change one line of a budget.
+
+    The quantity is the final one, waste included: what the budget shows.
+    """
+
+    quantity: float = Field(gt=0, description="How much of it the job needs")
+
+
 class BudgetRead(BaseModel):
     """A budget header with its computed totals."""
 

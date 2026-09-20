@@ -33,6 +33,7 @@ from models import (
     BlueRateResponse,
     BudgetCreate,
     BudgetItemCreate,
+    BudgetItemUpdate,
     BudgetRead,
     BudgetUpdate,
     ClientCreate,
@@ -452,6 +453,45 @@ def add_budget_item(budget_id: str, payload: BudgetItemCreate) -> BudgetRead:
 
         item = _build_budget_item(payload)
         supabase_service.add_budget_item(budget_id, item)
+        budget = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if budget is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return BudgetRead.model_validate(budget)
+
+
+@app.patch(
+    "/api/budgets/{budget_id}/items/{item_id}",
+    response_model=BudgetRead,
+    tags=["budgets"],
+)
+def update_budget_item(
+    budget_id: str, item_id: str, payload: BudgetItemUpdate
+) -> BudgetRead:
+    """Change the quantity of a line and return the budget with its new totals.
+
+    The quantity is taken as final: whatever waste was added when the line was
+    created is already part of the number the budget shows.
+    """
+    quantity = Decimal(str(payload.quantity)).quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)
+
+    if quantity <= 0:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La cantidad tiene que ser mayor que cero",
+        )
+
+    try:
+        updated = supabase_service.update_budget_item(
+            budget_id, item_id, {"quantity": float(quantity)}
+        )
+
+        if updated is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el ítem")
+
         budget = supabase_service.get_budget(budget_id)
     except SupabaseServiceError as exc:
         raise _handle_supabase_error(exc) from exc

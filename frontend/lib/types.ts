@@ -116,6 +116,12 @@ export interface BudgetItemCreate {
   waste_percent?: number;
 }
 
+/** Payload accepted by PATCH /api/budgets/{id}/items/{itemId}. */
+export interface BudgetItemUpdate {
+  /** The final quantity, waste included: what the budget shows. */
+  quantity: number;
+}
+
 export interface BudgetItem {
   id: string;
   budget_id: string;
