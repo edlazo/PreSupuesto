@@ -206,6 +206,17 @@ export default function HelpGuide() {
             </ul>
           </Callout>
 
+          <Callout title="Para quién es">
+            <p>
+              Abajo del estado dice <strong>Cliente</strong>. Mientras no elijas a nadie
+              queda en <em>Consumidor final</em>: tocá <Button>Elegir</Button> y buscalo
+              por nombre, o cargalo ahí mismo con{" "}
+              <Button>+ Cargar un cliente nuevo</Button> (alcanza con el nombre; el
+              teléfono, el mail y la dirección son opcionales). El nombre y los datos que
+              cargues son los que salen en el PDF.
+            </p>
+          </Callout>
+
           <Callout title="Volver a uno de antes">
             <p>
               En <PageLink href="/presupuestos">Presupuestos</PageLink> tenés todos los que

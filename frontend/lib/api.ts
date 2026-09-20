@@ -5,8 +5,11 @@ import type {
   Budget,
   BudgetCreate,
   BudgetItemCreate,
+  BudgetUpdate,
   BulkPriceUpdateResult,
   ChatResponse,
+  Client,
+  ClientCreate,
   HealthResponse,
   Material,
   MaterialCreate,
@@ -150,6 +153,19 @@ export function listStandardTasks(search?: string): Promise<StandardTask[]> {
   return request<StandardTask[]>(`/api/standard-tasks${query}`);
 }
 
+// --- Clients ----------------------------------------------------------------
+export function listClients(search?: string): Promise<Client[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return request<Client[]>(`/api/clients${query}`);
+}
+
+export function createClient(payload: ClientCreate): Promise<Client> {
+  return request<Client>("/api/clients", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // --- Budgets ----------------------------------------------------------------
 /** Start an empty budget. Without a client, the backend uses its stand-in one. */
 export function createBudget(payload: BudgetCreate = {}): Promise<Budget> {
@@ -173,6 +189,14 @@ export function deleteBudgetItem(budgetId: string, itemId: string): Promise<Budg
     method: "DELETE",
   });
 }
+/** Change a budget header — its client, its title, its status. */
+export function updateBudget(budgetId: string, payload: BudgetUpdate): Promise<Budget> {
+  return request<Budget>(`/api/budgets/${budgetId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listBudgets(limit = 20): Promise<Budget[]> {
   return request<Budget[]>(`/api/budgets?limit=${limit}`);
 }

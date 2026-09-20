@@ -502,6 +502,24 @@ def create_budget(budget: dict[str, Any], items: list[dict[str, Any]]) -> dict[s
     return stored
 
 
+def update_budget(budget_id: str, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Change a budget header and return the complete budget.
+
+    Only the header fields are touched: the lines and the totals the database
+    keeps for them stay exactly as they were.
+    """
+    if not payload:
+        return get_budget(budget_id)
+
+    query = get_client().table(BUDGETS_TABLE).update(payload).eq("id", budget_id)
+    updated = _first(_execute(query, action="update budget"))
+
+    if updated is None:
+        return None
+
+    return get_budget(budget_id)
+
+
 def get_budget(budget_id: str) -> Optional[dict[str, Any]]:
     """Return a budget with its lines, or None when it does not exist."""
     header_query = get_client().table(BUDGETS_TABLE).select("*").eq("id", budget_id).limit(1)

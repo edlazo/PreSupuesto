@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ApiError, downloadBudgetPdf, listBudgets } from "@/lib/api";
+import { ApiError, downloadBudgetPdf, listBudgets, listClients } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Budget, BudgetStatus } from "@/lib/types";
 
@@ -35,6 +35,8 @@ export default function BudgetHistory() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Budgets carry a client id, not a name, so the names are looked up once.
+  const [clientNames, setClientNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     // `isActive` drops the answer of a request a newer one has replaced.
@@ -54,6 +56,17 @@ export default function BudgetHistory() {
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
+      });
+
+    listClients()
+      .then((rows) => {
+        if (!isActive) return;
+        setClientNames(
+          Object.fromEntries(rows.map((row) => [row.id, row.full_name])),
+        );
+      })
+      .catch(() => {
+        // A name is a nicety: the list still works without it.
       });
 
     return () => {
@@ -126,6 +139,9 @@ export default function BudgetHistory() {
                     <p className="mt-0.5 text-xs text-muted">
                       N° {budget.budget_number} · {formatDate(budget.created_at)}
                     </p>
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {clientNames[budget.client_id] ?? "Sin cliente"}
+                    </p>
                   </div>
                   <StatusBadge status={budget.status} />
                 </div>
@@ -153,6 +169,7 @@ export default function BudgetHistory() {
                 <tr>
                   <th className="px-4 py-3 font-medium">N°</th>
                   <th className="px-4 py-3 font-medium">Título</th>
+                  <th className="px-4 py-3 font-medium">Cliente</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 text-right font-medium">Total</th>
@@ -164,6 +181,9 @@ export default function BudgetHistory() {
                   <tr key={budget.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 text-muted">{budget.budget_number}</td>
                     <td className="max-w-xs truncate px-4 py-3 font-medium">{budget.title}</td>
+                    <td className="max-w-[12rem] truncate px-4 py-3 text-muted">
+                      {clientNames[budget.client_id] ?? "—"}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">
                       {formatDate(budget.created_at)}
                     </td>

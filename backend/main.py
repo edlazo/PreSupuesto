@@ -34,6 +34,9 @@ from models import (
     BudgetCreate,
     BudgetItemCreate,
     BudgetRead,
+    BudgetUpdate,
+    ClientCreate,
+    ClientRead,
     BulkPriceUpdateRequest,
     BulkPriceUpdateResponse,
     ChatRequest,
@@ -314,6 +317,53 @@ def list_standard_tasks(
 
 
 # ---------------------------------------------------------------------------
+# Clients
+# ---------------------------------------------------------------------------
+@app.get("/api/clients", response_model=list[ClientRead], tags=["clients"])
+def list_clients(
+    search: Optional[str] = Query(default=None, description="Text to look for in the full name"),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[ClientRead]:
+    """List clients a budget can be addressed to."""
+    try:
+        rows = supabase_service.list_clients(search=search, limit=limit)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return [ClientRead.model_validate(row) for row in rows]
+
+
+@app.post(
+    "/api/clients",
+    response_model=ClientRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["clients"],
+)
+def create_client(payload: ClientCreate) -> ClientRead:
+    """Create a client."""
+    try:
+        row = supabase_service.create_client_record(payload.model_dump(exclude_none=True))
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return ClientRead.model_validate(row)
+
+
+@app.get("/api/clients/{client_id}", response_model=ClientRead, tags=["clients"])
+def get_client(client_id: str) -> ClientRead:
+    """Read one client."""
+    try:
+        row = supabase_service.get_client_record(client_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el cliente")
+
+    return ClientRead.model_validate(row)
+
+
+# ---------------------------------------------------------------------------
 # Budgets
 #
 # A budget can be built by hand from the web app or by the agent through its
@@ -440,6 +490,40 @@ def get_budget(budget_id: str) -> BudgetRead:
     """Read one budget with all of its lines."""
     try:
         row = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return BudgetRead.model_validate(row)
+
+
+@app.patch("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])
+def update_budget(budget_id: str, payload: BudgetUpdate) -> BudgetRead:
+    """Change a budget header: its client, its title or its status.
+
+    Only the fields that were sent are written, so assigning a client does not
+    disturb anything else the budget already carries.
+    """
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    if "valid_until" in changes:
+        changes["valid_until"] = changes["valid_until"].isoformat()
+
+    # A missing client would surface as a foreign key violation, whose generic
+    # message says nothing useful, so it is checked first.
+    if "client_id" in changes:
+        try:
+            client = supabase_service.get_client_record(changes["client_id"])
+        except SupabaseServiceError as exc:
+            raise _handle_supabase_error(exc) from exc
+
+        if client is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el cliente")
+
+    try:
+        row = supabase_service.update_budget(budget_id, changes)
     except SupabaseServiceError as exc:
         raise _handle_supabase_error(exc) from exc
 

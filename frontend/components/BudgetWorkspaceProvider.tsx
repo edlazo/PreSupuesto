@@ -17,6 +17,7 @@ import {
   deleteBudgetItem,
   getBudget,
   getLatestBudget,
+  updateBudget,
 } from "@/lib/api";
 import type { Budget, BudgetItemCreate } from "@/lib/types";
 
@@ -30,6 +31,8 @@ interface BudgetWorkspaceValue {
   /** Append a line, starting a budget first when there is none yet. */
   addItem: (item: BudgetItemCreate) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
+  /** Address the budget to a client, replacing the stand-in one. */
+  assignClient: (clientId: string) => Promise<void>;
   /** Put the newest stored budget on screen — what the agent just wrote. */
   reload: () => void;
   /** Leave the current budget and start an empty one. */
@@ -135,6 +138,26 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const assignClient = useCallback(
+    async (clientId: string) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudget(budget.id, { client_id: clientId }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo asignar el cliente.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const startNewBudget = useCallback(async () => {
     setIsSaving(true);
 
@@ -160,11 +183,23 @@ export default function BudgetWorkspaceProvider({
       error,
       addItem,
       removeItem,
+      assignClient,
       reload,
       startNewBudget,
       clearError,
     }),
-    [budget, isLoading, isSaving, error, addItem, removeItem, reload, startNewBudget, clearError],
+    [
+      budget,
+      isLoading,
+      isSaving,
+      error,
+      addItem,
+      removeItem,
+      assignClient,
+      reload,
+      startNewBudget,
+      clearError,
+    ],
   );
 
   return (

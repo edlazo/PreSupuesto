@@ -130,7 +130,11 @@ which exercises the MCP tools without the web app.
 | POST | `/api/budgets` | Start an empty budget. Without `client_id` it hangs off the stand-in "Consumidor final" client |
 | POST | `/api/budgets/{id}/items` | Append a line from a `material_id`, a `standard_task_id`, or free text. Answers with the whole budget |
 | DELETE | `/api/budgets/{id}/items/{item_id}` | Remove a line. Answers with the whole budget |
+| PATCH | `/api/budgets/{id}` | Change the header: `client_id`, `title`, `status`, `description`, `site_address`, `valid_until`. Only the fields sent are written |
 | GET | `/api/standard-tasks` | Labor tasks catalog, for the manual entry form |
+| GET | `/api/clients` | Clients a budget can be addressed to; `search`, `limit` |
+| POST | `/api/clients` | Create. Only `full_name` is required |
+| GET | `/api/clients/{id}` | Read one |
 | GET | `/api/budgets` | Budget headers, newest first; `client_id`, `status`, `limit` |
 | GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
 | GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename. `?currency=USD` converts it, `&rate=` sets the rate to apply |

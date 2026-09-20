@@ -54,6 +54,43 @@ export interface StandardTask {
   updated_at: string;
 }
 
+/** A client a budget can be addressed to. */
+export interface Client {
+  id: string;
+  full_name: string;
+  company_name: string | null;
+  tax_id: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload accepted by POST /api/clients. */
+export interface ClientCreate {
+  full_name: string;
+  company_name?: string | null;
+  tax_id?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  notes?: string | null;
+}
+
+/** Payload accepted by PATCH /api/budgets/{id}. Every field is optional. */
+export interface BudgetUpdate {
+  title?: string;
+  client_id?: string;
+  description?: string | null;
+  site_address?: string | null;
+  status?: BudgetStatus;
+  valid_until?: string | null;
+}
+
 /** Payload accepted by POST /api/budgets. */
 export interface BudgetCreate {
   title?: string;

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useBlueRate } from "@/components/BlueRateProvider";
 import { useBudgetWorkspace } from "@/components/BudgetWorkspaceProvider";
+import ClientField from "@/components/ClientField";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
@@ -68,8 +69,16 @@ function sumLines(items: BudgetItem[]): number {
  * from the form, or written by the assistant.
  */
 export default function BudgetPreview() {
-  const { budget, isLoading, isSaving, error, removeItem, reload, startNewBudget } =
-    useBudgetWorkspace();
+  const {
+    budget,
+    isLoading,
+    isSaving,
+    error,
+    removeItem,
+    assignClient,
+    reload,
+    startNewBudget,
+  } = useBudgetWorkspace();
   const [isExporting, setIsExporting] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("ARS");
   const { rate: blueRate } = useBlueRate();
@@ -234,6 +243,12 @@ export default function BudgetPreview() {
                 </span>
               ) : null}
             </div>
+
+            <ClientField
+              clientId={budget.client_id}
+              isSaving={isSaving}
+              onSelect={(clientId) => void assignClient(clientId)}
+            />
 
             {budget.description ? (
               <p className="text-sm text-muted">{budget.description}</p>

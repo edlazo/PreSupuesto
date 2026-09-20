@@ -169,6 +169,19 @@ class BudgetCreate(BaseModel):
     valid_until: Optional[date] = None
 
 
+class BudgetUpdate(BaseModel):
+    """Payload to change a budget header. Every field is optional."""
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    client_id: Optional[str] = Field(
+        default=None, description="Client the budget belongs to"
+    )
+    description: Optional[str] = None
+    site_address: Optional[str] = None
+    status: Optional[BudgetStatus] = None
+    valid_until: Optional[date] = None
+
+
 class BudgetItemCreate(BaseModel):
     """Payload to append one line to a budget.
 
