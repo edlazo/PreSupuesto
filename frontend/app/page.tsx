@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useState } from "react";
 import BudgetPreview from "@/components/BudgetPreview";
 import BudgetWorkspaceProvider, {
   useBudgetWorkspace,
@@ -17,10 +18,30 @@ const PANEL_TABS: { id: MobilePanel; label: string }[] = [
 ];
 
 export default function WorkspacePage() {
+  // `useSearchParams` needs a boundary, so the shell renders before the query.
   return (
-    <BudgetWorkspaceProvider>
+    <Suspense fallback={<WorkspaceFallback />}>
+      <WorkspaceRoute />
+    </Suspense>
+  );
+}
+
+/** Opens the budget named in `?budget=`, or the newest one when there is none. */
+function WorkspaceRoute() {
+  const budgetId = useSearchParams().get("budget");
+
+  return (
+    <BudgetWorkspaceProvider initialBudgetId={budgetId}>
       <Workspace />
     </BudgetWorkspaceProvider>
+  );
+}
+
+function WorkspaceFallback() {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+      Cargando el escritorio…
+    </div>
   );
 }
 

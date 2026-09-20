@@ -205,6 +205,15 @@ export default function HelpGuide() {
               </li>
             </ul>
           </Callout>
+
+          <Callout title="Volver a uno de antes">
+            <p>
+              En <PageLink href="/presupuestos">Presupuestos</PageLink> tenés todos los que
+              guardaste, del más nuevo al más viejo, con su fecha, su estado y su total. Tocá{" "}
+              <Button>Abrir</Button> para seguir editando uno, o <Button>PDF</Button> para
+              bajarlo de nuevo sin abrirlo.
+            </p>
+          </Callout>
         </GuideSection>
 
         {/* 3 ----------------------------------------------------------------- */}
@@ -493,7 +502,13 @@ function Code({ children }: { children: React.ReactNode }) {
 }
 
 /** Link to another view of the application. */
-function PageLink({ href, children }: { href: "/" | "/materials"; children: React.ReactNode }) {
+function PageLink({
+  href,
+  children,
+}: {
+  href: "/" | "/materials" | "/presupuestos";
+  children: React.ReactNode;
+}) {
   return (
     <Link href={href} className="font-medium text-primary underline-offset-4 hover:underline">
       {children}

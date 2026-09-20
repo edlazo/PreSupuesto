@@ -9,11 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   ApiError,
   addBudgetItem,
   createBudget,
   deleteBudgetItem,
+  getBudget,
   getLatestBudget,
 } from "@/lib/api";
 import type { Budget, BudgetItemCreate } from "@/lib/types";
@@ -44,7 +46,15 @@ const BudgetWorkspaceContext = createContext<BudgetWorkspaceValue | null>(null);
  * workspace keeps one budget in state: the endpoints answer with the whole
  * budget after every change, and a finished chat turn reloads the newest one.
  */
-export default function BudgetWorkspaceProvider({ children }: { children: ReactNode }) {
+export default function BudgetWorkspaceProvider({
+  children,
+  initialBudgetId = null,
+}: {
+  children: ReactNode;
+  /** Budget to open instead of the newest one — the history view links here. */
+  initialBudgetId?: string | null;
+}) {
+  const router = useRouter();
   const [budget, setBudget] = useState<Budget | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,7 +65,9 @@ export default function BudgetWorkspaceProvider({ children }: { children: ReactN
     // `isActive` drops the answer of a request a newer one has replaced.
     let isActive = true;
 
-    getLatestBudget()
+    const loading = initialBudgetId ? getBudget(initialBudgetId) : getLatestBudget();
+
+    loading
       .then((latest) => {
         if (!isActive) return;
         setBudget(latest);
@@ -74,7 +86,7 @@ export default function BudgetWorkspaceProvider({ children }: { children: ReactN
     return () => {
       isActive = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, initialBudgetId]);
 
   const reload = useCallback(() => {
     setIsLoading(true);
@@ -129,6 +141,8 @@ export default function BudgetWorkspaceProvider({ children }: { children: ReactN
     try {
       setBudget(await createBudget());
       setError(null);
+      // Drop `?budget=`, so a reload does not reopen the one just left behind.
+      router.replace("/");
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "No se pudo crear el presupuesto.",
@@ -136,7 +150,7 @@ export default function BudgetWorkspaceProvider({ children }: { children: ReactN
     } finally {
       setIsSaving(false);
     }
-  }, []);
+  }, [router]);
 
   const value = useMemo(
     () => ({

@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { useBlueRate } from "@/components/BlueRateProvider";
 import { formatCurrency } from "@/lib/format";
 
+// `short` is what phones show, where the full labels do not fit.
 const NAV_LINKS = [
-  { href: "/", label: "Escritorio" },
-  { href: "/materials", label: "Materiales" },
-  { href: "/ayuda", label: "Ayuda" },
+  { href: "/", label: "Escritorio", short: "Inicio" },
+  { href: "/presupuestos", label: "Presupuestos", short: "Presup." },
+  { href: "/materials", label: "Materiales", short: "Materiales" },
+  { href: "/ayuda", label: "Ayuda", short: "Ayuda" },
 ] as const;
 
 /** Application header with branding and the main navigation links. */
@@ -52,7 +54,8 @@ export default function Navbar() {
                     : "text-muted hover:bg-surface-muted hover:text-foreground"
                 }`}
               >
-                {link.label}
+                <span className="sm:hidden">{link.short}</span>
+                <span className="hidden sm:inline">{link.label}</span>
               </Link>
             );
           })}
