@@ -57,11 +57,11 @@ def test_a_budget_can_start_with_its_client(api, catalog):
     assert budget["client_id"] == client["id"]
 
 
-def test_renaming_and_sending_a_budget(api, catalog):
+def test_renaming_a_budget(api, catalog):
     budget = api.post("/api/budgets", json={}).json()
-    response = api.patch(f"/api/budgets/{budget['id']}", json={"title": "Cocina", "status": "sent"})
+    response = api.patch(f"/api/budgets/{budget['id']}", json={"title": "Cocina"})
     assert response.json()["title"] == "Cocina"
-    assert response.json()["status"] == "sent"
+    assert response.json()["status"] == "draft"
 
 
 def test_an_unknown_status_is_refused(api, catalog):

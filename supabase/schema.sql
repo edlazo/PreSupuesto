@@ -143,8 +143,10 @@ create table if not exists public.budgets (
   title         text not null,
   description   text,
   site_address  text,
+  -- Borrador, En proceso, Terminado / cobrado.
   status        text not null default 'draft'
-                check (status in ('draft', 'sent', 'accepted', 'rejected', 'expired')),
+                constraint budgets_status_check
+                check (status in ('draft', 'in_progress', 'completed')),
   currency      char(3) not null default 'ARS',
   tax_rate      numeric(5, 2) not null default 0 check (tax_rate >= 0 and tax_rate <= 100),
   -- subtotal is maintained by the budget_items trigger below.

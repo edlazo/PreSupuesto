@@ -21,7 +21,7 @@ import {
   updateBudgetItem,
 } from "@/lib/api";
 import { readListedQuantity } from "@/lib/materialList";
-import type { Budget, BudgetItemCreate } from "@/lib/types";
+import type { Budget, BudgetItemCreate, BudgetItemUpdate, BudgetStatus } from "@/lib/types";
 
 interface BudgetWorkspaceValue {
   /** The budget everything on the workspace reads and writes. */
@@ -43,6 +43,13 @@ interface BudgetWorkspaceValue {
   setItemQuoted: (itemId: string, isQuoted: boolean) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
   assignClient: (clientId: string) => Promise<void>;
+  /** Move the budget to Borrador, En proceso or Terminado / cobrado. */
+  setStatus: (status: BudgetStatus) => Promise<void>;
+  /** Reword a line already added: its name, what it includes, its remark. */
+  editItemText: (
+    itemId: string,
+    text: Pick<BudgetItemUpdate, "description" | "detail" | "note">,
+  ) => Promise<void>;
   /** Record which site conditions apply, frozen with their percentages. */
   setSiteFactors: (codes: string[]) => Promise<void>;
   /** Put the newest stored budget on screen — what the agent just wrote. */
@@ -263,6 +270,46 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const setStatus = useCallback(
+    async (status: BudgetStatus) => {
+      if (!budget || budget.status === status) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudget(budget.id, { status }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar el estado.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
+  const editItemText = useCallback(
+    async (itemId: string, text: Pick<BudgetItemUpdate, "description" | "detail" | "note">) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudgetItem(budget.id, itemId, text));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo guardar el cambio.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const setSiteFactors = useCallback(
     async (codes: string[]) => {
       if (!budget) return;
@@ -313,6 +360,8 @@ export default function BudgetWorkspaceProvider({
       setItemQuoted,
       updateListedQuantity,
       assignClient,
+      setStatus,
+      editItemText,
       setSiteFactors,
       reload,
       startNewBudget,
@@ -330,6 +379,8 @@ export default function BudgetWorkspaceProvider({
       setItemQuoted,
       updateListedQuantity,
       assignClient,
+      setStatus,
+      editItemText,
       setSiteFactors,
       reload,
       startNewBudget,

@@ -19,6 +19,8 @@ os.environ.update(
         "DEFAULT_CURRENCY": "ARS",
         "DEFAULT_TAX_RATE": "0",
         "COMPANY_NAME": "Construcciones de prueba",
+        "ACCESS_KEY": "test-access-key-that-is-long-enough-000",
+        "SESSION_DAYS": "180",
     }
 )
 
@@ -27,7 +29,7 @@ from types import SimpleNamespace  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from services import currency_service, supabase_service  # noqa: E402
+from services import auth_service, currency_service, supabase_service  # noqa: E402
 from tests.fake_supabase import FakeDatabase  # noqa: E402
 
 # The five conditions the real database is seeded with (migrations 002 and 004).
@@ -74,7 +76,16 @@ def catalog(db: FakeDatabase) -> SimpleNamespace:
 
 @pytest.fixture
 def api(db: FakeDatabase) -> TestClient:
-    """The FastAPI app, talking to the fake database."""
+    """The FastAPI app, talking to the fake database, signed in."""
+    import main
+
+    token, _ = auth_service.create_session()
+    return TestClient(main.app, headers={"Authorization": f"Bearer {token}"})
+
+
+@pytest.fixture
+def anonymous(db: FakeDatabase) -> TestClient:
+    """The FastAPI app with no session, as a stranger would reach it."""
     import main
 
     return TestClient(main.app)

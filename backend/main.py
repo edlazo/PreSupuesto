@@ -2,7 +2,8 @@
 
 Endpoints:
 
-* `GET    /health`               — service and configuration status
+* `GET    /health`               — service and configuration status (public)
+* `POST   /api/auth/login`       — trade the access key for a session (public)
 * `GET    /api/budgets/{id}/pdf` — the budget as a downloadable PDF
 * `GET    /api/materials`        — list materials (search, filter, paginate)
 * `POST   /api/materials`        — create a material
@@ -13,6 +14,7 @@ Endpoints:
 * `POST   /api/budgets`          — start a budget
 * `POST   /api/budgets/{id}/items` — append a line
 * `DELETE /api/budgets/{id}/items/{item_id}` — remove a line
+* `DELETE /api/budgets/{id}`     — delete a budget and its lines
 * `GET    /api/standard-tasks`   — labor tasks catalog
 * `GET    /api/currency/blue`    — current blue dollar rate
 * `POST   /api/chat`             — talk to the Hermes Agent
@@ -24,7 +26,7 @@ import logging
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -46,6 +48,8 @@ from models import (
     ChatResponse,
     DeletedResponse,
     HealthResponse,
+    LoginRequest,
+    LoginResponse,
     MaterialCreate,
     MaterialRead,
     MaterialUpdate,
@@ -53,12 +57,14 @@ from models import (
 )
 from services import (
     agent_service,
+    auth_service,
     currency_service,
     pdf_service,
     pricing_service,
     supabase_service,
 )
 from services.agent_service import AgentError
+from services.auth_service import AuthNotConfiguredError
 from services.currency_service import CurrencyServiceError
 from services.pdf_service import PdfServiceError
 from services.hermes_service import HermesServiceError
@@ -73,10 +79,44 @@ UNIQUE_VIOLATION = "23505"
 QUANTITY_STEP = Decimal("0.001")
 FOREIGN_KEY_VIOLATION = "23503"
 
+# The only routes open without a session.
+PUBLIC_PATHS = frozenset({"/health", "/api/auth/login"})
+
+
+def require_session(request: Request) -> None:
+    """Refuse every request without a valid session, except the public routes.
+
+    The app has a single user, who gets in through a private link: see
+    `services/auth_service.py`. The session travels as a bearer token rather
+    than a cookie because the frontend and the API live on different domains
+    once deployed, where browsers increasingly drop third-party cookies.
+    """
+    if request.url.path in PUBLIC_PATHS:
+        return
+
+    header = request.headers.get("Authorization", "")
+    scheme, _, token = header.partition(" ")
+
+    try:
+        # A server without a key says so, rather than calling every link wrong.
+        auth_service.ensure_configured()
+        valid = scheme.lower() == "bearer" and auth_service.session_is_valid(token)
+    except AuthNotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    if not valid:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail="Entrá con tu link de acceso",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 app = FastAPI(
     title="PreSupuesto API",
     description="Construction and renovation budget automation, backed by Supabase and Hermes Agent.",
     version="0.1.0",
+    dependencies=[Depends(require_session)],
 )
 
 app.add_middleware(
@@ -216,7 +256,27 @@ def health() -> HealthResponse:
         supabase_configured=settings.supabase_configured,
         hermes_configured=settings.hermes_configured,
         gemini_configured=settings.gemini_configured,
+        access_configured=len(settings.access_key.strip()) >= auth_service.MIN_KEY_LENGTH,
     )
+
+
+# ---------------------------------------------------------------------------
+# Access
+# ---------------------------------------------------------------------------
+@app.post("/api/auth/login", response_model=LoginResponse, tags=["auth"])
+def login(payload: LoginRequest) -> LoginResponse:
+    """Trade the key from the private access link for a session."""
+    try:
+        if not auth_service.key_matches(payload.key):
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail="Ese link de acceso no es válido o ya no está vigente",
+            )
+        token, expires_at = auth_service.create_session()
+    except AuthNotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    return LoginResponse(token=token, expires_at=expires_at)
 
 
 # ---------------------------------------------------------------------------
@@ -584,6 +644,7 @@ def update_budget_item(
     base price, before the site conditions are applied on the way out. Turning
     `is_quoted` off leaves the line listed without a price, out of the total.
     `quantity_text` is a listed line's quantity as written; blank clears it.
+    `description`, `detail` and `note` rewrite the text of work already added.
     """
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
 
@@ -594,6 +655,19 @@ def update_budget_item(
     if "quantity_text" in changes:
         # Blank clears it, and the numeric quantity shows again.
         changes["quantity_text"] = changes["quantity_text"].strip() or None
+
+    if "description" in changes:
+        changes["description"] = changes["description"].strip()
+        if not changes["description"]:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="La línea necesita un nombre",
+            )
+
+    # Bullets and the remark are optional: blank takes them off the line.
+    for field in ("detail", "note"):
+        if field in changes:
+            changes[field] = changes[field].strip() or None
 
     if "quantity" in changes:
         quantity = Decimal(str(changes["quantity"])).quantize(
@@ -659,6 +733,24 @@ def get_budget(budget_id: str) -> BudgetRead:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
     return BudgetRead.model_validate(_as_charged(row))
+
+
+@app.delete("/api/budgets/{budget_id}", response_model=DeletedResponse, tags=["budgets"])
+def delete_budget(budget_id: str) -> DeletedResponse:
+    """Delete a budget and all of its lines, for good.
+
+    Meant for a quote made by mistake or no longer wanted. There is no undo:
+    the web app asks before calling this.
+    """
+    try:
+        deleted = supabase_service.delete_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return DeletedResponse(id=budget_id)
 
 
 @app.patch("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])

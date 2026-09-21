@@ -98,4 +98,5 @@ def test_health_reports_what_is_configured(api):
         "supabase_configured": True,
         "hermes_configured": False,
         "gemini_configured": False,
+        "access_configured": True,
     }

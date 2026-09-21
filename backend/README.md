@@ -95,13 +95,35 @@ cd backend && python -m venv venv && venv/Scripts/python -m pip install -r requi
    **service role** key: the schema turns on Row Level Security with no
    policies, so the anon key reads nothing.
 
-4. Run the API:
+4. Generate the access key and put it in `.env` as `ACCESS_KEY`:
+
+```bash
+python new_access_key.py http://localhost:3000
+```
+
+5. Run the API:
 
 ```bash
 cd backend && uvicorn main:app --reload
 ```
 
 Interactive docs are then at http://127.0.0.1:8000/docs.
+
+## Access
+
+The app has one user and no accounts. Whoever opens the private link
+`<site>/entrar#k=<ACCESS_KEY>` gets a session for `SESSION_DAYS` (180 by
+default); every route except `/health` and `POST /api/auth/login` answers 401
+without one, and 503 if `ACCESS_KEY` is missing or shorter than 32 characters,
+so a deploy that forgot it stays closed rather than open.
+
+- The key rides after `#`, which browsers never send to a server, and the
+  entry page wipes it from the address bar.
+- Sessions are `v1.<expiry>.<HMAC-SHA256>` tokens signed with the key itself
+  (`services/auth_service.py`), sent as `Authorization: Bearer`. Nothing is
+  stored server side.
+- **A leaked link:** generate a new key, set it, restart. Every old link and
+  session stops working at once; send the new link.
 
 ## Wiring up Hermes Agent
 

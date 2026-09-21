@@ -1,6 +1,7 @@
 /** Types mirroring the Pydantic models exposed by the FastAPI backend. */
 
-export type BudgetStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+/** Borrador, En proceso, Terminado / cobrado. */
+export type BudgetStatus = "draft" | "in_progress" | "completed";
 
 export type BudgetItemType = "material" | "task" | "custom";
 
@@ -150,6 +151,12 @@ export interface BudgetItemUpdate {
   is_quoted?: boolean;
   /** A listed line's quantity as written. An empty string clears it. */
   quantity_text?: string;
+  /** What the line is called. */
+  description?: string;
+  /** Bullet lines covered by the price. An empty string clears them. */
+  detail?: string;
+  /** Condition printed next to the price. An empty string clears it. */
+  note?: string;
 }
 
 export interface BudgetItem {

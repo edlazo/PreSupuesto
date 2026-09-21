@@ -611,6 +611,15 @@ def update_budget(budget_id: str, payload: dict[str, Any]) -> Optional[dict[str,
     return get_budget(budget_id)
 
 
+def delete_budget(budget_id: str) -> bool:
+    """Delete a budget and, through the foreign key cascade, all its lines.
+
+    Returns False when the budget does not exist.
+    """
+    query = get_client().table(BUDGETS_TABLE).delete().eq("id", budget_id)
+    return bool(_execute(query, action="delete budget"))
+
+
 def get_budget(budget_id: str) -> Optional[dict[str, Any]]:
     """Return a budget with its lines, or None when it does not exist."""
     header_query = get_client().table(BUDGETS_TABLE).select("*").eq("id", budget_id).limit(1)

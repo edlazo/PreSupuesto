@@ -90,4 +90,13 @@ body {
   .no-print {
     display: none !important;
   }
+
+  .print-only {
+    display: inline !important;
+  }
+}
+
+/* Shown only on paper: stands in for a control the printout leaves out. */
+.print-only {
+  display: none;
 }

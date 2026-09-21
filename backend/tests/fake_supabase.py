@@ -102,7 +102,7 @@ FOREIGN_KEYS = {
     ("budget_items", "standard_task_id"): ("standard_tasks", "restrict"),
 }
 
-BUDGET_STATUSES = {"draft", "sent", "accepted", "rejected", "expired"}
+BUDGET_STATUSES = {"draft", "in_progress", "completed"}
 FACTOR_BASES = {"labor", "materials", "note"}
 
 

@@ -16,6 +16,7 @@ import type {
   PricingFactorUpdate,
   StandardTask,
 } from "./types";
+import { expireSession, getSessionToken } from "./session";
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
@@ -52,6 +53,22 @@ async function readErrorMessage(response: Response): Promise<string> {
   return `La solicitud falló con estado ${response.status}`;
 }
 
+/** The session header, when this browser has one. */
+function authHeaders(): Record<string, string> {
+  const token = getSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * A 401 on a signed-in request means the session is gone — expired, or the
+ * link was replaced — so it is dropped; AuthGate then shows the entry page.
+ */
+function handleSignedOut(response: Response): void {
+  if (response.status === 401 && typeof window !== "undefined" && getSessionToken()) {
+    expireSession();
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
 
@@ -60,6 +77,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...init?.headers,
       },
       cache: "no-store",
@@ -72,6 +90,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    handleSignedOut(response);
     throw new ApiError(await readErrorMessage(response), response.status);
   }
 
@@ -80,6 +99,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+// --- Access -----------------------------------------------------------------
+export interface Session {
+  token: string;
+  /** Unix timestamp, in seconds. */
+  expires_at: number;
+}
+
+/** Trade the key from the private link for a session. */
+export function login(key: string): Promise<Session> {
+  return request<Session>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ key }),
+  });
 }
 
 // --- Materials --------------------------------------------------------------
@@ -185,6 +219,13 @@ export function updateBudget(budgetId: string, payload: BudgetUpdate): Promise<B
   });
 }
 
+/** Delete a budget and all of its lines. There is no undo. */
+export function deleteBudget(budgetId: string): Promise<{ id: string; deleted: boolean }> {
+  return request<{ id: string; deleted: boolean }>(`/api/budgets/${budgetId}`, {
+    method: "DELETE",
+  });
+}
+
 export function listBudgets(limit = 20): Promise<Budget[]> {
   return request<Budget[]>(`/api/budgets?limit=${limit}`);
 }
@@ -230,7 +271,7 @@ export async function downloadBudgetPdf(
   try {
     response = await fetch(
       `${API_BASE_URL}/api/budgets/${budgetId}/pdf${query ? `?${query}` : ""}`,
-      { cache: "no-store" },
+      { cache: "no-store", headers: authHeaders() },
     );
   } catch {
     throw new ApiError(
@@ -240,6 +281,7 @@ export async function downloadBudgetPdf(
   }
 
   if (!response.ok) {
+    handleSignedOut(response);
     throw new ApiError(await readErrorMessage(response), response.status);
   }
 

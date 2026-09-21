@@ -143,7 +143,18 @@ export default function HelpGuide() {
                 <Code>2.250.000</Code>, escribí ese número y listo.
               </li>
               <li>
+                Para cambiar el texto de un trabajo ya cargado —el nombre, qué incluye o la
+                aclaración— tocá el <strong>✎</strong> de esa línea, corregí y tocá{" "}
+                <Button>Guardar</Button>. El precio no se toca.
+              </li>
+              <li>
                 Para sacar algo, tocá la <strong>✕</strong> a la derecha de la línea.
+              </li>
+              <li>
+                Arriba del presupuesto está el estado: <strong>Borrador</strong> mientras lo
+                armás, <strong>En proceso</strong> cuando el cliente dijo que sí y{" "}
+                <strong>Terminado</strong> cuando la obra está hecha y cobrada. Tocá el que
+                corresponda.
               </li>
               <li>
                 <Button>Nuevo</Button> arranca un presupuesto vacío; el anterior queda
@@ -228,6 +239,16 @@ export default function HelpGuide() {
               guardaste, del más nuevo al más viejo, con su fecha, su estado y su total. Tocá{" "}
               <Button>Abrir</Button> para seguir editando uno, o <Button>PDF</Button> para
               bajarlo de nuevo sin abrirlo.
+            </p>
+            <p className="mt-2">
+              Ahí mismo le cambiás el estado a cada uno, y con los botones de arriba ves solo
+              los <strong>En proceso</strong> —lo que falta terminar o cobrar— o solo los{" "}
+              <strong>Terminados</strong>.
+            </p>
+            <p className="mt-2">
+              Si armaste uno por error, tocá <Button>Eliminar</Button> y confirmá con{" "}
+              <Button>Sí, eliminar</Button>. Se borra con todas sus líneas y{" "}
+              <strong>no se puede recuperar</strong>.
             </p>
           </Callout>
         </GuideSection>
@@ -400,6 +421,10 @@ export default function HelpGuide() {
         {/* 5 ----------------------------------------------------------------- */}
         <GuideSection id="problemas" number={5} title="Si algo no funciona">
           <dl className="space-y-4">
+            <Problem question="Me pide el link de acceso">
+              Abrí de nuevo el link que te pasaron: queda guardado unos meses en cada celular o
+              compu. Si dice que no es válido, es que lo cambiaron; pedí el nuevo.
+            </Problem>
             <Problem question="El asistente no contesta o tira error">
               Probá de nuevo en un rato. Si sigue igual, avisale a quien te instaló el
               sistema: puede estar apagado el servicio del asistente.

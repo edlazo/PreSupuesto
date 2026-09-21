@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     # Comma-separated list of origins allowed by CORS.
     cors_origins: str = "http://localhost:3000"
 
+    # --- Access ---------------------------------------------------------------
+    # The secret in the private access link (`/entrar#k=<ACCESS_KEY>`). Every
+    # API route but /health and the login answers 401 without a session from
+    # it. Changing it revokes every link and session. Generate one with
+    # `python new_access_key.py`.
+    access_key: str = ""
+    # How long opening the link keeps a device signed in.
+    session_days: int = 180
+
     # --- Company details, printed on the budget PDF -------------------------
     company_name: str = "PreSupuesto"
     company_tax_id: str = ""

@@ -8,7 +8,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-BudgetStatus = Literal["draft", "sent", "accepted", "rejected", "expired"]
+# Borrador, En proceso, Terminado / cobrado.
+BudgetStatus = Literal["draft", "in_progress", "completed"]
 BudgetItemType = Literal["material", "task", "custom"]
 
 
@@ -309,6 +310,37 @@ class BudgetItemUpdate(BaseModel):
         max_length=40,
         description="For a listed line: the quantity as written. An empty string clears it",
     )
+    description: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="What the line is called: the work, the task, the material",
+    )
+    detail: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Bullet lines covered by the price, one per line. An empty string clears them",
+    )
+    note: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Condition printed next to the price. An empty string clears it",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="What the line is: the job's title, or the material's name",
+    )
+    detail: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Bullet lines covered by the price, one per line. Empty clears them",
+    )
+    note: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Condition printed next to the price. Empty clears it",
+    )
+    unit: Optional[str] = Field(default=None, max_length=20, description="Unit of measure")
 
 
 class BudgetRead(BaseModel):
@@ -383,6 +415,19 @@ class DeletedResponse(BaseModel):
     deleted: bool = True
 
 
+class LoginRequest(BaseModel):
+    """The access key from the private link."""
+
+    key: str = Field(min_length=1, max_length=500)
+
+
+class LoginResponse(BaseModel):
+    """A session to send as `Authorization: Bearer <token>`."""
+
+    token: str
+    expires_at: int = Field(description="Unix timestamp when the session ends")
+
+
 class HealthResponse(BaseModel):
     """Service health and configuration status."""
 
@@ -390,6 +435,7 @@ class HealthResponse(BaseModel):
     supabase_configured: bool
     hermes_configured: bool
     gemini_configured: bool
+    access_configured: bool
 
 
 # `BulkPriceUpdateResponse` refers to `MaterialRead`, which is defined below it.

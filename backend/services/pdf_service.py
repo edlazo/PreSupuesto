@@ -69,10 +69,8 @@ WHOLE_JOB_UNIT = "global"
 # Budget statuses, as they are printed for the client.
 STATUS_LABELS = {
     "draft": "Borrador",
-    "sent": "Enviado",
-    "accepted": "Aceptado",
-    "rejected": "Rechazado",
-    "expired": "Vencido",
+    "in_progress": "En proceso",
+    "completed": "Terminado",
 }
 
 CENTS = Decimal("0.01")

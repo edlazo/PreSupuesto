@@ -8,27 +8,12 @@ import SiteConditions from "@/components/SiteConditions";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import { MAX_QUANTITY_TEXT } from "@/lib/materialList";
-import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
+import StatusPicker from "@/components/StatusPicker";
+import { STATUS_LABELS } from "@/lib/status";
+import type { Budget, BudgetItem, BudgetItemUpdate } from "@/lib/types";
 
 /** The currencies the preview can show a budget in. */
 type DisplayCurrency = "ARS" | "USD";
-
-// Status labels, as they are shown to the user.
-const STATUS_LABELS: Record<BudgetStatus, string> = {
-  draft: "Borrador",
-  sent: "Enviado",
-  accepted: "Aceptado",
-  rejected: "Rechazado",
-  expired: "Vencido",
-};
-
-const STATUS_STYLES: Record<BudgetStatus, string> = {
-  draft: "bg-surface-muted text-muted",
-  sent: "bg-primary-soft text-primary",
-  accepted: "bg-success-soft text-success",
-  rejected: "bg-danger-soft text-danger",
-  expired: "bg-surface-muted text-muted",
-};
 
 /**
  * Price a budget in dollars at the given rate.
@@ -105,6 +90,8 @@ export default function BudgetPreview() {
     updateItemPrice,
     setItemQuoted,
     assignClient,
+    setStatus,
+    editItemText,
     setSiteFactors,
     reload,
     startNewBudget,
@@ -286,11 +273,14 @@ export default function BudgetPreview() {
         ) : (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[budget.status]}`}
-              >
-                {STATUS_LABELS[budget.status] ?? budget.status}
-              </span>
+              <StatusPicker
+                status={budget.status}
+                disabled={isSaving}
+                label={`Estado del presupuesto #${budget.budget_number}`}
+                onChange={(status) => void setStatus(status)}
+              />
+              {/* The picker is left out of the printout; the status is not. */}
+              <span className="print-only text-xs font-medium">{STATUS_LABELS[budget.status]}</span>
               <span className="text-xs text-muted">Creado el {formatDate(budget.created_at)}</span>
               {budget.valid_until ? (
                 <span className="text-xs text-muted">
@@ -322,6 +312,7 @@ export default function BudgetPreview() {
               onQuantityChange={handleQuantityChange}
               onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
+              onEditText={(itemId, text) => void editItemText(itemId, text)}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -332,6 +323,7 @@ export default function BudgetPreview() {
               onQuantityChange={handleQuantityChange}
               onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
+              onEditText={(itemId, text) => void editItemText(itemId, text)}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -342,6 +334,7 @@ export default function BudgetPreview() {
               onQuantityChange={handleQuantityChange}
               onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
+              onEditText={(itemId, text) => void editItemText(itemId, text)}
               isSaving={isSaving}
             />
 
@@ -353,6 +346,7 @@ export default function BudgetPreview() {
               onQuantityChange={handleQuantityChange}
               onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
+              onEditText={(itemId, text) => void editItemText(itemId, text)}
               isSaving={isSaving}
               onListedQuantityChange={(itemId, typed) => void updateListedQuantity(itemId, typed)}
               isSupplied
@@ -422,6 +416,7 @@ function ItemGroup({
   onToggleQuoted,
   isSaving,
   onListedQuantityChange,
+  onEditText,
   isSupplied = false,
 }: {
   title: string;
@@ -434,9 +429,14 @@ function ItemGroup({
   isSaving: boolean;
   /** Save a listed quantity as typed: a number, or "1/2", "2 o 3". */
   onListedQuantityChange?: (itemId: string, typed: string) => void;
+  /** Save a line's new wording. */
+  onEditText: (itemId: string, text: LineText) => void;
   /** Listed for the customer to buy: quantities, no money. */
   isSupplied?: boolean;
 }) {
+  // One line at a time is reworded, in place.
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   if (items.length === 0) {
     return null;
   }
@@ -448,6 +448,20 @@ function ItemGroup({
       </h3>
       <ul className="divide-y divide-border rounded-lg border border-border">
         {items.map((item) => (
+          editingId === item.id ? (
+          <li key={item.id} className="px-3 py-2.5">
+            <LineEditor
+              item={item}
+              isSupplied={isSupplied}
+              isSaving={isSaving}
+              onCancel={() => setEditingId(null)}
+              onSave={(text) => {
+                setEditingId(null);
+                onEditText(item.id, text);
+              }}
+            />
+          </li>
+          ) : (
           <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm break-words">{item.description}</p>
@@ -522,6 +536,16 @@ function ItemGroup({
                   {formatCurrency(item.line_total, currency)}
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => setEditingId(item.id)}
+                disabled={isSaving}
+                title="Editar el texto de la línea"
+                aria-label={`Editar ${item.description}`}
+                className="no-print rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-40"
+              >
+                ✎
+              </button>
               {isSupplied ? null : (
                 <button
                   type="button"
@@ -546,6 +570,7 @@ function ItemGroup({
               </button>
             </span>
           </li>
+          )
         ))}
       </ul>
     </div>
@@ -624,6 +649,122 @@ function QuantityCell({
       }}
       className="no-print w-20 rounded-md border border-primary bg-background px-1.5 py-0.5 text-xs outline-none"
     />
+  );
+}
+
+/** The wording of a line, as the editor sends it: blank clears an extra. */
+type LineText = Pick<BudgetItemUpdate, "description" | "detail" | "note">;
+
+/**
+ * Reword a line already added: its name and, for work that is charged, what
+ * it includes and the remark next to the price. Only what changed is sent.
+ */
+function LineEditor({
+  item,
+  isSupplied,
+  isSaving,
+  onSave,
+  onCancel,
+}: {
+  item: BudgetItem;
+  isSupplied: boolean;
+  isSaving: boolean;
+  onSave: (text: LineText) => void;
+  onCancel: () => void;
+}) {
+  const [description, setDescription] = useState(item.description);
+  const [detail, setDetail] = useState(item.detail ?? "");
+  const [note, setNote] = useState(item.note ?? "");
+  const fieldId = `line-${item.id}`;
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const changes: LineText = {};
+    if (description.trim() !== item.description) changes.description = description.trim();
+    if (detail.trim() !== (item.detail ?? "")) changes.detail = detail.trim();
+    if (note.trim() !== (item.note ?? "")) changes.note = note.trim();
+
+    if (Object.keys(changes).length === 0) {
+      onCancel();
+      return;
+    }
+
+    onSave(changes);
+  }
+
+  const fieldClass =
+    "mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary";
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onCancel();
+      }}
+      className="no-print flex flex-col gap-2"
+    >
+      <div>
+        <label htmlFor={`${fieldId}-description`} className="text-xs font-medium text-muted">
+          {isSupplied ? "Material" : "Trabajo"}
+        </label>
+        <input
+          id={`${fieldId}-description`}
+          autoFocus
+          maxLength={300}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          className={fieldClass}
+        />
+      </div>
+
+      {isSupplied ? null : (
+        <>
+          <div>
+            <label htmlFor={`${fieldId}-detail`} className="text-xs font-medium text-muted">
+              Qué incluye <span className="font-normal">(una línea por ítem)</span>
+            </label>
+            <textarea
+              id={`${fieldId}-detail`}
+              rows={4}
+              maxLength={2000}
+              value={detail}
+              onChange={(event) => setDetail(event.target.value)}
+              className={`resize-y ${fieldClass}`}
+            />
+          </div>
+          <div>
+            <label htmlFor={`${fieldId}-note`} className="text-xs font-medium text-muted">
+              Aclaración al lado del precio
+            </label>
+            <input
+              id={`${fieldId}-note`}
+              maxLength={300}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              className={fieldClass}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={isSaving || !description.trim()}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Guardar
+        </button>
+      </div>
+    </form>
   );
 }
 
