@@ -509,6 +509,19 @@ def update_budget_item(
     `line_total` is a generated column and the budget totals come from a
     trigger, so writing the quantity is enough for both to follow.
     """
+    if not payload:
+        # An UPDATE with no columns is a PostgREST error, so the row is only
+        # read back — the caller still learns whether the line exists.
+        query = (
+            get_client()
+            .table(BUDGET_ITEMS_TABLE)
+            .select("*")
+            .eq("id", item_id)
+            .eq("budget_id", budget_id)
+            .limit(1)
+        )
+        return _first(_execute(query, action="get budget item"))
+
     query = (
         get_client()
         .table(BUDGET_ITEMS_TABLE)

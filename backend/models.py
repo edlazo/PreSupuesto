@@ -200,6 +200,7 @@ class BudgetItemRead(BaseModel):
     unit: str
     quantity: float
     unit_price: float
+    is_quoted: bool = True
     line_total: float
     sort_order: int
 
@@ -258,6 +259,10 @@ class BudgetItemCreate(BaseModel):
     unit: Optional[str] = Field(default=None, max_length=20)
     unit_price: Optional[float] = Field(default=None, ge=0)
     quantity: float = Field(gt=0, description="How much of it the job needs")
+    is_quoted: bool = Field(
+        default=True,
+        description="False lists the line without a price and keeps it out of the total",
+    )
     waste_percent: float = Field(
         default=0,
         ge=0,
@@ -267,12 +272,18 @@ class BudgetItemCreate(BaseModel):
 
 
 class BudgetItemUpdate(BaseModel):
-    """Payload to change one line of a budget.
+    """Payload to change one line of a budget. Every field is optional.
 
     The quantity is the final one, waste included: what the budget shows.
     """
 
-    quantity: float = Field(gt=0, description="How much of it the job needs")
+    quantity: Optional[float] = Field(
+        default=None, gt=0, description="How much of it the job needs"
+    )
+    is_quoted: Optional[bool] = Field(
+        default=None,
+        description="False lists the line without a price and keeps it out of the total",
+    )
 
 
 class BudgetRead(BaseModel):

@@ -237,6 +237,25 @@ export default function HelpGuide() {
             </ul>
           </Callout>
 
+          <Callout title="Materiales que compra el cliente">
+            <p>
+              Elegí el modo <strong>Lista</strong>. Escribí el material, y si querés la
+              cantidad y la unidad: <em>3 m3 de arena fina</em>. Pero si es algo que no se
+              mide —<em>madera</em>, <em>cerámica, adhesivo y pastina</em>— dejá los dos
+              casilleros vacíos y va solo el nombre.
+            </p>
+            <p className="mt-2">
+              <strong>Nunca se le pone precio.</strong> Es la lista que le dejás al cliente
+              para que vaya al corralón: aparece en <strong>A cargo del cliente</strong> y, en
+              el PDF, al final bajo <em>MATERIALES A CARGO DEL CLIENTE</em>, aclarando que no
+              está incluida en el total.
+            </p>
+            <p className="mt-2">
+              Si un material que estabas cobrando pasa a comprarlo el cliente, tocá el{" "}
+              <strong>☰</strong> de la línea: se va a la lista y deja de sumar.
+            </p>
+          </Callout>
+
           <Callout title="Lo que cambia el precio">
             <p>
               Abajo del presupuesto está <strong>Condiciones de obra</strong>. Marcá lo que

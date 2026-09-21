@@ -151,13 +151,17 @@ export interface BudgetItemCreate {
   unit?: string | null;
   unit_price?: number | null;
   quantity: number;
+  /** False lists the line without a price and keeps it out of the total. */
+  is_quoted?: boolean;
   waste_percent?: number;
 }
 
 /** Payload accepted by PATCH /api/budgets/{id}/items/{itemId}. */
 export interface BudgetItemUpdate {
   /** The final quantity, waste included: what the budget shows. */
-  quantity: number;
+  quantity?: number;
+  /** False lists the line without a price and keeps it out of the total. */
+  is_quoted?: boolean;
 }
 
 export interface BudgetItem {
@@ -172,6 +176,7 @@ export interface BudgetItem {
   unit: string;
   quantity: number;
   unit_price: number;
+  is_quoted: boolean;
   line_total: number;
   sort_order: number;
 }

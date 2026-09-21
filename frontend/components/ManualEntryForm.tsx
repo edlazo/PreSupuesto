@@ -19,11 +19,16 @@ interface CatalogEntry {
 }
 
 /** How the line being added is priced. */
-type EntryMode = "package" | "catalog";
+type EntryMode = "package" | "catalog" | "list";
 
 const MODES: { id: EntryMode; label: string; hint: string }[] = [
   { id: "package", label: "Partida", hint: "Describís el trabajo y ponés un precio" },
   { id: "catalog", label: "Del catálogo", hint: "Material o mano de obra por cantidad" },
+  {
+    id: "list",
+    label: "Lista",
+    hint: "Materiales que compra el cliente: van sin precio y no suman",
+  },
 ];
 
 const MAX_RESULTS = 8;
@@ -85,6 +90,11 @@ export default function ManualEntryForm() {
   const [quantity, setQuantity] = useState("");
   const [waste, setWaste] = useState("");
   const [isListOpen, setIsListOpen] = useState(false);
+  // The list the customer takes to the yard.
+  const [listName, setListName] = useState("");
+  const [listQuantity, setListQuantity] = useState("");
+  const [listUnit, setListUnit] = useState("");
+  const [isNameListOpen, setIsNameListOpen] = useState(false);
 
   // Work package side.
   const [title, setTitle] = useState("");
@@ -96,6 +106,7 @@ export default function ManualEntryForm() {
   const searchRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const listNameRef = useRef<HTMLInputElement>(null);
 
   // Both catalogs are small enough to hold in memory and filter as you type.
   useEffect(() => {
@@ -136,6 +147,18 @@ export default function ManualEntryForm() {
       .slice(0, MAX_RESULTS);
   }, [entries, search]);
 
+  const nameResults = useMemo(() => {
+    const needle = normalize(listName.trim());
+
+    if (!needle) {
+      return [];
+    }
+
+    return entries
+      .filter((entry) => entry.kind === "material" && normalize(entry.name).includes(needle))
+      .slice(0, MAX_RESULTS);
+  }, [entries, listName]);
+
   const parsedQuantity = Number(quantity.replace(",", "."));
   const parsedWaste = waste.trim() === "" ? 0 : Number(waste.replace(",", "."));
   const parsedPrice = Number(price.replace(/\./g, "").replace(",", "."));
@@ -146,14 +169,19 @@ export default function ManualEntryForm() {
     !isSaving &&
     (mode === "package"
       ? title.trim() !== "" && hasValidPrice
-      : selected !== null && hasValidQuantity);
+      : mode === "list"
+        ? listName.trim() !== ""
+        : selected !== null && hasValidQuantity);
 
+  // The list carries no money, so it never shows a subtotal.
   const lineTotal =
     mode === "package"
       ? hasValidPrice
         ? parsedPrice
         : 0
-      : selected && hasValidQuantity
+      : mode === "list"
+        ? 0
+        : selected && hasValidQuantity
         ? selected.price *
           parsedQuantity *
           (selected.kind === "material" && Number.isFinite(parsedWaste)
@@ -190,6 +218,25 @@ export default function ManualEntryForm() {
       setNote("");
       setPrice("");
       titleRef.current?.focus();
+      return;
+    }
+
+    if (mode === "list") {
+      const listed = Number(listQuantity.replace(",", "."));
+
+      await addItem({
+        description: listName.trim(),
+        unit: listUnit.trim(),
+        // Listed, never charged: the backend stores it at zero.
+        is_quoted: false,
+        quantity: Number.isFinite(listed) && listed > 0 ? listed : 1,
+      });
+
+      setNotice(`Agregado a la lista: ${listName.trim()}`);
+      setListName("");
+      setListQuantity("");
+      setListUnit("");
+      listNameRef.current?.focus();
       return;
     }
 
@@ -331,6 +378,96 @@ export default function ManualEntryForm() {
               </button>
             </div>
           </>
+        ) : mode === "list" ? (
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            {/* The name, with the catalog only as a spelling hand. */}
+            <div className="relative min-w-0 flex-1">
+              <label htmlFor={`${listId}-list-name`} className="text-xs font-medium text-muted">
+                Material
+              </label>
+              <input
+                id={`${listId}-list-name`}
+                ref={listNameRef}
+                type="text"
+                autoComplete="off"
+                value={listName}
+                placeholder="Arena fina, cemento, 1.000 ladrillos comunes…"
+                onChange={(event) => {
+                  setListName(event.target.value);
+                  setIsNameListOpen(true);
+                  setNotice(null);
+                }}
+                onFocus={() => setIsNameListOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setIsNameListOpen(false);
+                }}
+                className={`mt-1 ${FIELD_CLASS}`}
+              />
+
+              {isNameListOpen && nameResults.length > 0 ? (
+                <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
+                  {nameResults.map((entry) => (
+                    <li key={entry.key}>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setListName(entry.name);
+                          setListUnit(entry.unit);
+                          setIsNameListOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-muted"
+                      >
+                        <span className="min-w-0 truncate text-sm">{entry.name}</span>
+                        <span className="shrink-0 text-xs text-muted">{entry.group}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="w-full lg:w-24">
+              <label
+                htmlFor={`${listId}-list-quantity`}
+                className="text-xs font-medium text-muted"
+              >
+                Cantidad <span className="font-normal">(opcional)</span>
+              </label>
+              <input
+                id={`${listId}-list-quantity`}
+                type="number"
+                min={0}
+                step="0.001"
+                value={listQuantity}
+                placeholder="—"
+                onChange={(event) => setListQuantity(event.target.value)}
+                className={`mt-1 ${FIELD_CLASS}`}
+              />
+            </div>
+
+            <div className="w-full lg:w-28">
+              <label htmlFor={`${listId}-list-unit`} className="text-xs font-medium text-muted">
+                Unidad <span className="font-normal">(opcional)</span>
+              </label>
+              <input
+                id={`${listId}-list-unit`}
+                type="text"
+                value={listUnit}
+                placeholder="m3, bolsa, u"
+                onChange={(event) => setListUnit(event.target.value)}
+                className={`mt-1 ${FIELD_CLASS}`}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? "Agregando…" : "Agregar a la lista"}
+            </button>
+          </div>
         ) : (
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             {/* Search and pick ----------------------------------------------- */}
@@ -476,10 +613,11 @@ export default function ManualEntryForm() {
             </button>
           </div>
         )}
+
       </form>
 
       <div className="mt-2 min-h-[1.25rem] text-xs" aria-live="polite">
-        {catalogError && mode === "catalog" ? (
+        {catalogError && mode !== "package" ? (
           <span className="text-danger">{catalogError}</span>
         ) : lineTotal > 0 ? (
           <span className="text-muted">

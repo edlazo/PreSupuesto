@@ -342,6 +342,11 @@ def _parties_block(
     return blocks
 
 
+def _is_quoted(item: dict[str, Any]) -> bool:
+    """False for a line that is only listed, with no price and no total."""
+    return item.get("is_quoted", True) is not False
+
+
 def _is_whole_job(item: dict[str, Any]) -> bool:
     """True when the line is a job priced whole, with no quantity to show."""
     return str(item.get("unit") or "") == WHOLE_JOB_UNIT and _to_float(item.get("quantity")) == 1
@@ -397,7 +402,11 @@ def _items_table(
     group_rows: list[int] = []
 
     for item_type, label in ITEM_GROUPS:
-        group_items = [item for item in items if item.get("item_type") == item_type]
+        group_items = [
+            item
+            for item in items
+            if item.get("item_type") == item_type and _is_quoted(item)
+        ]
         if not group_items:
             continue
 
@@ -455,6 +464,72 @@ def _items_table(
     return [table, Spacer(1, 6 * mm)]
 
 
+def _supplied_block(
+    budget: dict[str, Any],
+    styles: dict[str, ParagraphStyle],
+) -> list[Any]:
+    """Materials the customer buys: what to get, how much, no prices.
+
+    A quote written by hand closes with such a list, so it is printed apart
+    from the priced table and adds nothing to the total.
+    """
+    items = [item for item in (budget.get("items") or []) if not _is_quoted(item)]
+
+    if not items:
+        return []
+
+    rows: list[list[Any]] = [
+        [
+            Paragraph("<b>Material</b>", styles["cell"]),
+            Paragraph("<b>Cantidad</b>", styles["cell_right"]),
+            Paragraph("<b>Unidad</b>", styles["cell"]),
+        ]
+    ]
+
+    for item in items:
+        # Some entries are just a name — "madera" — with nothing to measure.
+        unit = str(item.get("unit") or "")
+        measured = bool(unit) or _to_float(item.get("quantity")) != 1
+
+        rows.append(
+            [
+                Paragraph(_describe(item), styles["cell"]),
+                Paragraph(
+                    format_quantity(item.get("quantity")) if measured else "",
+                    styles["cell_right"],
+                ),
+                Paragraph(escape(unit), styles["cell"]),
+            ]
+        )
+
+    table = Table(rows, colWidths=[104 * mm, 25 * mm, 41 * mm], repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.6, BORDER_COLOR),
+                ("LINEBELOW", (0, 1), (-1, -2), 0.4, BORDER_COLOR),
+                ("BACKGROUND", (0, 0), (-1, 0), BAND_COLOR),
+            ]
+        )
+    )
+
+    return [
+        Spacer(1, 8 * mm),
+        Paragraph("MATERIALES A CARGO DEL CLIENTE", styles["heading"]),
+        Paragraph(
+            "Cantidades aproximadas. No están incluidas en el total de arriba.",
+            styles["muted"],
+        ),
+        Spacer(1, 3 * mm),
+        table,
+    ]
+
+
 def _totals_block(
     budget: dict[str, Any],
     currency: str,
@@ -465,7 +540,11 @@ def _totals_block(
 
     rows: list[list[Any]] = []
     for item_type, label in ITEM_GROUPS:
-        group_items = [item for item in items if item.get("item_type") == item_type]
+        group_items = [
+            item
+            for item in items
+            if item.get("item_type") == item_type and _is_quoted(item)
+        ]
         if not group_items:
             continue
 
@@ -646,6 +725,7 @@ def build_budget_pdf(
     )
     story.extend(_items_table(budget, currency, styles))
     story.extend(_totals_block(budget, currency, styles))
+    story.extend(_supplied_block(budget, styles))
 
     try:
         document.build(story, onFirstPage=_draw_page_furniture, onLaterPages=_draw_page_furniture)

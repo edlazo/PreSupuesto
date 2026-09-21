@@ -128,10 +128,12 @@ which exercises the MCP tools without the web app.
 | PUT / PATCH | `/api/materials/{id}` | Update the fields present in the body |
 | DELETE | `/api/materials/{id}` | Fails with 409 when a budget uses the material — deactivate it instead |
 | POST | `/api/budgets` | Start an empty budget. Without `client_id` it hangs off the stand-in "Consumidor final" client |
-| POST | `/api/budgets/{id}/items` | Append a line from a `material_id`, a `standard_task_id`, or free text. Answers with the whole budget |
-| PATCH | `/api/budgets/{id}/items/{item_id}` | Change the quantity of a line. The quantity is final, waste included. Answers with the whole budget |
+| POST | `/api/budgets/{id}/items` | Append a line from a `material_id`, a `standard_task_id`, or free text. Carries `detail` (bullets) and `note` (the condition next to the price). With `is_quoted: false` the line is only listed — no price is copied onto it and it adds nothing. Answers with the whole budget |
+| PATCH | `/api/budgets/{id}/items/{item_id}` | Change a line: `quantity` (final, waste included) and `is_quoted`. Answers with the whole budget |
+| GET | `/api/pricing-factors` | Site conditions that move a price; `only_active` |
+| PATCH | `/api/pricing-factors/{id}` | Tune one: `percent`, `label`, `is_active` |
 | DELETE | `/api/budgets/{id}/items/{item_id}` | Remove a line. Answers with the whole budget |
-| PATCH | `/api/budgets/{id}` | Change the header: `client_id`, `title`, `status`, `description`, `site_address`, `valid_until`. Only the fields sent are written |
+| PATCH | `/api/budgets/{id}` | Change the header: `client_id`, `title`, `status`, `description`, `site_address`, `valid_until`, `site_factors` (condition codes, frozen onto the budget). Only the fields sent are written |
 | GET | `/api/standard-tasks` | Labor tasks catalog, for the manual entry form |
 | GET | `/api/clients` | Clients a budget can be addressed to; `search`, `limit` |
 | POST | `/api/clients` | Create. Only `full_name` is required |

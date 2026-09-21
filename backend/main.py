@@ -107,6 +107,8 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
     extras = {
         "detail": (payload.detail or "").strip() or None,
         "note": (payload.note or "").strip() or None,
+        # A line the customer buys is listed, not charged.
+        "is_quoted": payload.is_quoted,
     }
 
     if payload.material_id and payload.standard_task_id:
@@ -114,6 +116,10 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Una línea no puede ser material y mano de obra a la vez",
         )
+
+    # Nothing is charged for a line the customer buys, so no price is copied
+    # onto it: the list is a list.
+    listed_only = payload.is_quoted is False
 
     if payload.material_id:
         material = supabase_service.get_material(payload.material_id)
@@ -131,7 +137,7 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
             **extras,
             "unit": material["unit"],
             "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
-            "unit_price": float(Decimal(str(material["unit_price"]))),
+            "unit_price": 0.0 if listed_only else float(Decimal(str(material["unit_price"]))),
         }
 
     if payload.standard_task_id:
@@ -147,10 +153,16 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
             **extras,
             "unit": task["unit"],
             "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
-            "unit_price": float(Decimal(str(task["labor_unit_price"]))),
+            "unit_price": 0.0 if listed_only else float(Decimal(str(task["labor_unit_price"]))),
         }
 
-    if not payload.description or payload.unit_price is None:
+    if not payload.description:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Una partida libre necesita descripción y precio",
+        )
+
+    if payload.unit_price is None and not listed_only:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Una partida libre necesita descripción y precio",
@@ -163,9 +175,10 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
         "description": payload.description,
         **extras,
         # A work package is quoted whole, so it carries no unit of measure.
-        "unit": payload.unit or "global",
+        # A listed material may carry none either: "madera", and that is all.
+        "unit": payload.unit if payload.unit is not None else ("" if listed_only else "global"),
         "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
-        "unit_price": float(payload.unit_price),
+        "unit_price": 0.0 if listed_only else float(payload.unit_price),
     }
 
 
@@ -526,23 +539,33 @@ def add_budget_item(budget_id: str, payload: BudgetItemCreate) -> BudgetRead:
 def update_budget_item(
     budget_id: str, item_id: str, payload: BudgetItemUpdate
 ) -> BudgetRead:
-    """Change the quantity of a line and return the budget with its new totals.
+    """Change a line and return the budget with its new totals.
 
     The quantity is taken as final: whatever waste was added when the line was
-    created is already part of the number the budget shows.
+    created is already part of the number the budget shows. Turning `is_quoted`
+    off leaves the line listed without a price, out of the total.
     """
-    quantity = Decimal(str(payload.quantity)).quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
 
-    if quantity <= 0:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La cantidad tiene que ser mayor que cero",
+    if changes.get("is_quoted") is False:
+        # Whatever it used to charge, on the list it charges nothing.
+        changes["unit_price"] = 0.0
+
+    if "quantity" in changes:
+        quantity = Decimal(str(changes["quantity"])).quantize(
+            QUANTITY_STEP, rounding=ROUND_HALF_UP
         )
+
+        if quantity <= 0:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="La cantidad tiene que ser mayor que cero",
+            )
+
+        changes["quantity"] = float(quantity)
 
     try:
-        updated = supabase_service.update_budget_item(
-            budget_id, item_id, {"quantity": float(quantity)}
-        )
+        updated = supabase_service.update_budget_item(budget_id, item_id, changes)
 
         if updated is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el ítem")

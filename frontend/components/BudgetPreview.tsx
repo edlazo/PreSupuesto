@@ -82,6 +82,7 @@ export default function BudgetPreview() {
     error,
     removeItem,
     updateItemQuantity,
+    setItemQuoted,
     assignClient,
     setSiteFactors,
     reload,
@@ -116,6 +117,11 @@ export default function BudgetPreview() {
     void updateItemQuantity(itemId, quantity);
   }
 
+  /** Move a line between what is charged and what the customer buys. */
+  function handleToggleQuoted(itemId: string, isQuoted: boolean) {
+    void setItemQuoted(itemId, isQuoted);
+  }
+
   /** Download the budget as a PDF rendered by the backend. */
   async function exportPdf() {
     if (!budget) {
@@ -141,9 +147,12 @@ export default function BudgetPreview() {
     }
   }
 
-  const materials = view?.items.filter((item) => item.item_type === "material") ?? [];
-  const labor = view?.items.filter((item) => item.item_type === "task") ?? [];
-  const packages = view?.items.filter((item) => item.item_type === "custom") ?? [];
+  // Lines the customer buys are listed apart and add nothing.
+  const quoted = view?.items.filter((item) => item.is_quoted !== false) ?? [];
+  const supplied = view?.items.filter((item) => item.is_quoted === false) ?? [];
+  const materials = quoted.filter((item) => item.item_type === "material");
+  const labor = quoted.filter((item) => item.item_type === "task");
+  const packages = quoted.filter((item) => item.item_type === "custom");
   const currency = displayCurrency;
 
   return (
@@ -273,6 +282,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -281,6 +291,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
             />
             <ItemGroup
@@ -289,7 +300,19 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
+            />
+
+            <ItemGroup
+              title="A cargo del cliente"
+              items={supplied}
+              currency={currency}
+              onRemove={handleRemove}
+              onQuantityChange={handleQuantityChange}
+              onToggleQuoted={handleToggleQuoted}
+              isSaving={isSaving}
+              isSupplied
             />
 
             <SiteConditions
@@ -352,14 +375,19 @@ function ItemGroup({
   currency,
   onRemove,
   onQuantityChange,
+  onToggleQuoted,
   isSaving,
+  isSupplied = false,
 }: {
   title: string;
   items: BudgetItem[];
   currency: string | undefined;
   onRemove: (itemId: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
+  onToggleQuoted: (itemId: string, isQuoted: boolean) => void;
   isSaving: boolean;
+  /** Listed for the customer to buy: quantities, no money. */
+  isSupplied?: boolean;
 }) {
   if (items.length === 0) {
     return null;
@@ -391,8 +419,8 @@ function ItemGroup({
                 </ul>
               ) : null}
 
-              {/* A job quoted whole has no quantity worth showing. */}
-              {isWholeJob(item) ? null : (
+              {/* A job quoted whole, or a bare name on the list, shows none. */}
+              {isWholeJob(item) || (isSupplied && !item.unit && item.quantity === 1) ? null : (
                 <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted">
                   <QuantityCell
                     item={item}
@@ -400,7 +428,9 @@ function ItemGroup({
                     onSave={(quantity) => onQuantityChange(item.id, quantity)}
                   />
                   <span>
-                    {item.unit} × {formatCurrency(item.unit_price, currency)}
+                    {isSupplied
+                      ? item.unit
+                      : `${item.unit} × ${formatCurrency(item.unit_price, currency)}`}
                   </span>
                 </p>
               )}
@@ -410,9 +440,25 @@ function ItemGroup({
               ) : null}
             </div>
             <span className="flex shrink-0 items-center gap-2">
-              <span className="whitespace-nowrap text-sm font-medium">
-                {formatCurrency(item.line_total, currency)}
-              </span>
+              {isSupplied ? (
+                <span className="whitespace-nowrap text-xs text-muted">lo pone el cliente</span>
+              ) : (
+                <span className="whitespace-nowrap text-sm font-medium">
+                  {formatCurrency(item.line_total, currency)}
+                </span>
+              )}
+              {isSupplied ? null : (
+                <button
+                  type="button"
+                  onClick={() => onToggleQuoted(item.id, false)}
+                  disabled={isSaving}
+                  title="Pasarlo a la lista que compra el cliente"
+                  aria-label={`Dejar al cliente ${item.description}`}
+                  className="no-print rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-40"
+                >
+                  ☰
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onRemove(item.id)}

@@ -183,7 +183,12 @@ create table if not exists public.budget_items (
   unit             text not null,
   quantity         numeric(12, 3) not null check (quantity > 0),
   unit_price       numeric(12, 2) not null check (unit_price >= 0),
-  line_total       numeric(14, 2) generated always as (round(quantity * unit_price, 2)) stored,
+  -- False for a line that is only listed — materials the customer buys — so
+  -- it shows quantity and unit but no price, and adds nothing to the total.
+  is_quoted        boolean not null default true,
+  line_total       numeric(14, 2) generated always as (
+                     case when is_quoted then round(quantity * unit_price, 2) else 0 end
+                   ) stored,
   sort_order       integer not null default 0,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),

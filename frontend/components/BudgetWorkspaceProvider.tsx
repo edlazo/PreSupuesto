@@ -34,6 +34,8 @@ interface BudgetWorkspaceValue {
   removeItem: (itemId: string) => Promise<void>;
   /** Correct how much of a line the job needs. */
   updateItemQuantity: (itemId: string, quantity: number) => Promise<void>;
+  /** Move a line between charged and only listed. */
+  setItemQuoted: (itemId: string, isQuoted: boolean) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
   assignClient: (clientId: string) => Promise<void>;
   /** Record which site conditions apply, frozen with their percentages. */
@@ -163,6 +165,26 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const setItemQuoted = useCallback(
+    async (itemId: string, isQuoted: boolean) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudgetItem(budget.id, itemId, { is_quoted: isQuoted }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar la línea.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const assignClient = useCallback(
     async (clientId: string) => {
       if (!budget) return;
@@ -229,6 +251,7 @@ export default function BudgetWorkspaceProvider({
       addItem,
       removeItem,
       updateItemQuantity,
+      setItemQuoted,
       assignClient,
       setSiteFactors,
       reload,
@@ -243,6 +266,7 @@ export default function BudgetWorkspaceProvider({
       addItem,
       removeItem,
       updateItemQuantity,
+      setItemQuoted,
       assignClient,
       setSiteFactors,
       reload,
