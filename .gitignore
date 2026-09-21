@@ -19,3 +19,5 @@ frontend/out/
 .DS_Store
 .vscode/
 .idea/
+# PDFs rendered while testing
+backend/*.pdf

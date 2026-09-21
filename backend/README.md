@@ -17,6 +17,23 @@ backed by Supabase (PostgreSQL).
 | `services/currency_service.py` | Blue dollar rate, read from dolarapi.com and cached briefly |
 | `tools/budget_tools.py` | The agent tools: catalogs, estimates, clients, budgets |
 | `mcp_server.py` | Serves those tools to Hermes Agent over MCP |
+| `tests/` | The test suite, run against an in-memory database |
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The suite never touches the real Supabase project, a paid model or the
+network: `tests/conftest.py` points the settings at fake values before the app
+loads, and `tests/fake_supabase.py` answers the queries `supabase_service`
+builds. That fake also does what the schema does on its own — `line_total`,
+the subtotal trigger, defaults, unique and foreign keys, the rule tying a
+line's type to what it points at — so a row the real database would refuse
+fails the tests too. Keep it in step with `supabase/schema.sql` when a
+migration changes a table.
 
 ## How the pieces fit
 

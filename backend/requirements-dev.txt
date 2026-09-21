@@ -1,0 +1,5 @@
+# What the test suite needs on top of requirements.txt.
+-r requirements.txt
+pytest>=8.3
+# Reads the text back out of the generated PDFs.
+pypdfium2>=4.30

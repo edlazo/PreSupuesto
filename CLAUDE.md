@@ -14,7 +14,7 @@ PreSupuesto is a web application and intelligent assistant designed to automate 
 - `/supabase`: Database schema and SQL migrations.
 
 ## Development Commands
-- Run Backend: `cd backend && uvicorn main:app --reload`
+- Run Backend: `cd backend && uvicorn main:app --host 0.0.0.0 --reload`
 - Run Frontend: `cd frontend && npm run dev`
 
 ## Guidelines & Conventions
