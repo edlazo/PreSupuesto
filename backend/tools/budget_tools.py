@@ -118,7 +118,10 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
 
             lines.append(
                 {
-                    "item_type": "material",
+                    # The database only takes a 'material' line that points at
+                    # the catalog; a name off the catalog is a free line, listed
+                    # the same way — which is also what the Lista form stores.
+                    "item_type": "material" if material else "custom",
                     "material_id": material["id"] if material else None,
                     "standard_task_id": None,
                     "description": material_name or raw.get("description") or material["name"],
