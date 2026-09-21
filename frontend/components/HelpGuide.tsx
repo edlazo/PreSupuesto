@@ -164,9 +164,15 @@ export default function HelpGuide() {
               casilleros vacíos y va solo el nombre.
             </p>
             <p className="mt-2">
+              En la cantidad podés escribir lo que haga falta, no solo números:{" "}
+              <Code>1/2</Code>, <Code>½</Code>, <Code>2 o 3</Code>, <Code>a definir</Code>.
+              Sale tal cual en la lista y en el PDF. Para cambiarla después, tocá la cantidad
+              en la lista.
+            </p>
+            <p className="mt-2">
               Si tenés la lista escrita, tocá <Button>Pegar varios</Button> y pegala entera,
               un material por renglón: <Code>1 m3 piedra partida</Code>,{" "}
-              <Code>10 bolsas plasticor</Code>, <Code>1.000 ladrillos comunes</Code>,{" "}
+              <Code>1/2 bolsa de cal</Code>, <Code>2 o 3 m3 de arena</Code>,{" "}
               <Code>madera</Code>. Entiende la cantidad y la unidad cuando están, te muestra
               cómo lo leyó y los agrega todos juntos.
             </p>

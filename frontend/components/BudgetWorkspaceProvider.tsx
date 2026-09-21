@@ -20,6 +20,7 @@ import {
   updateBudget,
   updateBudgetItem,
 } from "@/lib/api";
+import { readListedQuantity } from "@/lib/materialList";
 import type { Budget, BudgetItemCreate } from "@/lib/types";
 
 interface BudgetWorkspaceValue {
@@ -34,6 +35,8 @@ interface BudgetWorkspaceValue {
   removeItem: (itemId: string) => Promise<void>;
   /** Correct how much of a line the job needs. */
   updateItemQuantity: (itemId: string, quantity: number) => Promise<void>;
+  /** Change a listed line's quantity, as typed: "3", "1/2", "2 o 3". */
+  updateListedQuantity: (itemId: string, typed: string) => Promise<void>;
   /** Correct what a line charges, at its base price. */
   updateItemPrice: (itemId: string, unitPrice: number) => Promise<void>;
   /** Move a line between charged and only listed. */
@@ -167,6 +170,39 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const updateListedQuantity = useCallback(
+    async (itemId: string, typed: string) => {
+      const read = readListedQuantity(typed);
+      if (!budget || !read) return;
+
+      const hadWritten = Boolean(budget.items.find((item) => item.id === itemId)?.quantity_text);
+
+      setIsSaving(true);
+
+      try {
+        setBudget(
+          await updateBudgetItem(
+            budget.id,
+            itemId,
+            read.quantity_text !== null
+              ? { quantity_text: read.quantity_text }
+              : // A plain number replaces a written quantity, which is cleared;
+                // the clear is only sent when there is one to clear.
+                { quantity: read.quantity, ...(hadWritten ? { quantity_text: "" } : {}) },
+          ),
+        );
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar la cantidad.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const updateItemPrice = useCallback(
     async (itemId: string, unitPrice: number) => {
       if (!budget) return;
@@ -275,6 +311,7 @@ export default function BudgetWorkspaceProvider({
       updateItemQuantity,
       updateItemPrice,
       setItemQuoted,
+      updateListedQuantity,
       assignClient,
       setSiteFactors,
       reload,
@@ -291,6 +328,7 @@ export default function BudgetWorkspaceProvider({
       updateItemQuantity,
       updateItemPrice,
       setItemQuoted,
+      updateListedQuantity,
       assignClient,
       setSiteFactors,
       reload,

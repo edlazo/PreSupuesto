@@ -205,6 +205,10 @@ class BudgetItemRead(BaseModel):
     note: Optional[str] = None
     unit: str
     quantity: float
+    quantity_text: Optional[str] = Field(
+        default=None,
+        description="A listed line's quantity as written, e.g. '1/2'; shown instead of quantity",
+    )
     unit_price: float
     is_quoted: bool = True
     line_total: float
@@ -265,6 +269,11 @@ class BudgetItemCreate(BaseModel):
     unit: Optional[str] = Field(default=None, max_length=20)
     unit_price: Optional[float] = Field(default=None, ge=0)
     quantity: float = Field(gt=0, description="How much of it the job needs")
+    quantity_text: Optional[str] = Field(
+        default=None,
+        max_length=40,
+        description="For a listed line: the quantity as written, symbols and all, e.g. '1/2' or '2 o 3'",
+    )
     is_quoted: bool = Field(
         default=True,
         description="False lists the line without a price and keeps it out of the total",
@@ -294,6 +303,11 @@ class BudgetItemUpdate(BaseModel):
     is_quoted: Optional[bool] = Field(
         default=None,
         description="False lists the line without a price and keeps it out of the total",
+    )
+    quantity_text: Optional[str] = Field(
+        default=None,
+        max_length=40,
+        description="For a listed line: the quantity as written. An empty string clears it",
     )
 
 

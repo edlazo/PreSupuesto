@@ -67,7 +67,8 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
 
     * ``material_code`` or ``material`` — a material the customer buys, listed
       with no price: what it costs is the contractor's business, so it never
-      adds to the total. The quantity is optional ("madera" is enough);
+      adds to the total. The quantity is optional ("madera" is enough), and
+      ``quantity_text`` carries one written with symbols ("1/2", "2 o 3");
     * ``task_code``     — labour priced from the standard tasks catalog;
     * ``description`` + ``unit_price`` — a work package priced whole, with
       optional ``detail`` bullets and a ``note`` printed next to the price.
@@ -112,8 +113,9 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
                 if material is None:
                     raise ValueError(f"material code '{material_code}' does not exist")
 
+            written = str(raw.get("quantity_text") or "").strip()[:40] or None
             unit = ""
-            if has_quantity:
+            if has_quantity or written:
                 unit = (raw.get("unit") or "").strip() or (material["unit"] if material else "")
 
             lines.append(
@@ -127,6 +129,7 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
                     "description": material_name or raw.get("description") or material["name"],
                     "unit": unit,
                     "quantity": _quantity(quantity),
+                    "quantity_text": written,
                     # Nothing is charged for it, so no price is copied onto it.
                     "unit_price": Decimal("0"),
                     "line_total": Decimal("0"),
@@ -221,7 +224,7 @@ def _line_for_output(line: dict[str, Any]) -> dict[str, Any]:
             "code": line["source_code"],
             "description": line["description"],
             "unit": line["unit"],
-            "quantity": float(line["quantity"]),
+            "quantity": line["quantity_text"] or float(line["quantity"]),
         }
 
     return {
@@ -237,7 +240,7 @@ def _line_for_output(line: dict[str, Any]) -> dict[str, Any]:
 
 def _line_for_database(line: dict[str, Any]) -> dict[str, Any]:
     """Present a computed line as a `budget_items` row."""
-    return {
+    row = {
         "item_type": line["item_type"],
         "material_id": line["material_id"],
         "standard_task_id": line["standard_task_id"],
@@ -250,6 +253,10 @@ def _line_for_database(line: dict[str, Any]) -> dict[str, Any]:
         "note": line.get("note"),
         "is_quoted": line["is_quoted"],
     }
+    # Sent only when set, so a database without migration 005 still takes it.
+    if line.get("quantity_text"):
+        row["quantity_text"] = line["quantity_text"]
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +514,7 @@ def get_budget_tool(args: dict[str, Any], **_: Any) -> str:
                     "unit_price": float(item["unit_price"]),
                     "line_total": float(item["line_total"]),
                     "listed_only": item.get("is_quoted") is False,
+                    "quantity_text": item.get("quantity_text"),
                 }
                 for item in budget.get("items", [])
             ],
@@ -569,6 +577,13 @@ _ESTIMATE_ITEMS_SCHEMA = {
                 "type": "number",
                 "exclusiveMinimum": 0,
                 "description": "Required for labour and work packages; optional for a material",
+            },
+            "quantity_text": {
+                "type": "string",
+                "description": (
+                    "For a material only: the quantity as the user wrote it when it is not a "
+                    "plain number, e.g. '1/2', '2 o 3', 'a definir'. Use it instead of quantity"
+                ),
             },
         },
         "required": [],

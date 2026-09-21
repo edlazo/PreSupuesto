@@ -185,6 +185,10 @@ create table if not exists public.budget_items (
   note             text,
   unit             text not null,
   quantity         numeric(12, 3) not null check (quantity > 0),
+  -- A listed line's quantity as written — "1/2", "2 o 3" — printed instead
+  -- of `quantity`, which stays numeric for the lines that charge.
+  quantity_text    text constraint budget_items_quantity_text_length
+                   check (quantity_text is null or char_length(quantity_text) between 1 and 40),
   unit_price       numeric(12, 2) not null check (unit_price >= 0),
   -- False for a line that is only listed — materials the customer buys — so
   -- it shows quantity and unit but no price, and adds nothing to the total.

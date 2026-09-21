@@ -133,6 +133,8 @@ export interface BudgetItemCreate {
   unit?: string | null;
   unit_price?: number | null;
   quantity: number;
+  /** A listed line's quantity as written ("1/2", "2 o 3"); shown instead of quantity. */
+  quantity_text?: string | null;
   /** False lists the line without a price and keeps it out of the total. */
   is_quoted?: boolean;
   waste_percent?: number;
@@ -146,6 +148,8 @@ export interface BudgetItemUpdate {
   unit_price?: number;
   /** False lists the line without a price and keeps it out of the total. */
   is_quoted?: boolean;
+  /** A listed line's quantity as written. An empty string clears it. */
+  quantity_text?: string;
 }
 
 export interface BudgetItem {
@@ -159,6 +163,8 @@ export interface BudgetItem {
   note: string | null;
   unit: string;
   quantity: number;
+  /** A listed line's quantity as written ("1/2", "2 o 3"); shown instead of quantity. */
+  quantity_text?: string | null;
   unit_price: number;
   is_quoted: boolean;
   line_total: number;

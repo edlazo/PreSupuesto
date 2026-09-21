@@ -117,6 +117,14 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
         "is_quoted": payload.is_quoted,
     }
 
+    # Written quantities ("1/2", "2 o 3") only mean something on the list: a
+    # charged line multiplies its numeric quantity by its price. The column is
+    # only sent when there is something to write, so lines keep saving on a
+    # database that has not run migration 005 yet.
+    written = (payload.quantity_text or "").strip()
+    if written and payload.is_quoted is False:
+        extras["quantity_text"] = written
+
     if payload.material_id and payload.standard_task_id:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -575,12 +583,17 @@ def update_budget_item(
     created is already part of the number the budget shows. `unit_price` is the
     base price, before the site conditions are applied on the way out. Turning
     `is_quoted` off leaves the line listed without a price, out of the total.
+    `quantity_text` is a listed line's quantity as written; blank clears it.
     """
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
 
     if changes.get("is_quoted") is False:
         # Whatever it used to charge, on the list it charges nothing.
         changes["unit_price"] = 0.0
+
+    if "quantity_text" in changes:
+        # Blank clears it, and the numeric quantity shows again.
+        changes["quantity_text"] = changes["quantity_text"].strip() or None
 
     if "quantity" in changes:
         quantity = Decimal(str(changes["quantity"])).quantize(

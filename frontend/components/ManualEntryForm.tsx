@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBudgetWorkspace } from "@/components/BudgetWorkspaceProvider";
 import { ApiError, listMaterials, listStandardTasks } from "@/lib/api";
 import { formatCurrency, formatQuantity } from "@/lib/format";
-import { parseMaterialList } from "@/lib/materialList";
+import { MAX_QUANTITY_TEXT, parseMaterialList, readListedQuantity } from "@/lib/materialList";
 import type { Material, StandardTask } from "@/lib/types";
 
 /** One pickable catalog entry, from either catalog. */
@@ -238,6 +238,7 @@ export default function ManualEntryForm() {
           unit: item.unit,
           is_quoted: false,
           quantity: item.quantity ?? 1,
+          quantity_text: item.quantityText,
         });
       }
 
@@ -251,14 +252,16 @@ export default function ManualEntryForm() {
     }
 
     if (mode === "list") {
-      const listed = Number(listQuantity.replace(",", "."));
+      // "3" stays a number; "1/2" or "2 o 3" is kept as written.
+      const listed = readListedQuantity(listQuantity);
 
       await addItem({
         description: listName.trim(),
         unit: listUnit.trim(),
         // Listed, never charged: the backend stores it at zero.
         is_quoted: false,
-        quantity: Number.isFinite(listed) && listed > 0 ? listed : 1,
+        quantity: listed?.quantity ?? 1,
+        quantity_text: listed?.quantity_text ?? null,
       });
 
       setNotice(`Agregado a la lista: ${listName.trim()}`);
@@ -434,9 +437,11 @@ export default function ManualEntryForm() {
                   >
                     <span className="min-w-0 truncate">{item.name}</span>
                     <span className="shrink-0 tabular-nums text-muted">
-                      {item.quantity === null
-                        ? "sin cantidad"
-                        : `${formatQuantity(item.quantity)} ${item.unit}`.trim()}
+                      {item.quantityText !== null
+                        ? `${item.quantityText} ${item.unit}`.trim()
+                        : item.quantity === null
+                          ? "sin cantidad"
+                          : `${formatQuantity(item.quantity)} ${item.unit}`.trim()}
                     </span>
                   </li>
                 ))}
@@ -511,7 +516,7 @@ export default function ManualEntryForm() {
               ) : null}
             </div>
 
-            <div className="w-full lg:w-24">
+            <div className="w-full lg:w-28">
               <label
                 htmlFor={`${listId}-list-quantity`}
                 className="text-xs font-medium text-muted"
@@ -520,11 +525,10 @@ export default function ManualEntryForm() {
               </label>
               <input
                 id={`${listId}-list-quantity`}
-                type="number"
-                min={0}
-                step="0.001"
+                type="text"
+                maxLength={MAX_QUANTITY_TEXT}
                 value={listQuantity}
-                placeholder="—"
+                placeholder="3, 1/2…"
                 onChange={(event) => setListQuantity(event.target.value)}
                 className={`mt-1 ${FIELD_CLASS}`}
               />

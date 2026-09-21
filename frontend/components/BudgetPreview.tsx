@@ -7,6 +7,7 @@ import ClientField from "@/components/ClientField";
 import SiteConditions from "@/components/SiteConditions";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
+import { MAX_QUANTITY_TEXT } from "@/lib/materialList";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
 
 /** The currencies the preview can show a budget in. */
@@ -100,6 +101,7 @@ export default function BudgetPreview() {
     error,
     removeItem,
     updateItemQuantity,
+    updateListedQuantity,
     updateItemPrice,
     setItemQuoted,
     assignClient,
@@ -194,7 +196,7 @@ export default function BudgetPreview() {
   return (
     <section
       aria-label="Vista previa del presupuesto"
-      className="print-area flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
+      className="print-area flex flex-col rounded-xl border border-border bg-surface shadow-sm"
     >
       <header className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-5 sm:py-4">
         <div className="min-w-0">
@@ -262,7 +264,7 @@ export default function BudgetPreview() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+      <div className="px-4 py-4 sm:px-5 sm:py-5">
         {exportError ? (
           <p className="no-print mb-4 rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">
             {exportError}
@@ -274,7 +276,7 @@ export default function BudgetPreview() {
         ) : error ? (
           <div className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger">{error}</div>
         ) : !budget || !view ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
+          <div className="flex flex-col items-center justify-center py-10 text-center">
             <p className="text-sm font-medium">Todavía no hay nada cargado</p>
             <p className="mt-1 max-w-xs text-sm text-muted">
               Agregá materiales y mano de obra desde el formulario de arriba, o pedile
@@ -352,6 +354,7 @@ export default function BudgetPreview() {
               onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
+              onListedQuantityChange={(itemId, typed) => void updateListedQuantity(itemId, typed)}
               isSupplied
             />
 
@@ -418,6 +421,7 @@ function ItemGroup({
   onPriceChange,
   onToggleQuoted,
   isSaving,
+  onListedQuantityChange,
   isSupplied = false,
 }: {
   title: string;
@@ -428,6 +432,8 @@ function ItemGroup({
   onPriceChange: (itemId: string, unitPrice: number) => void;
   onToggleQuoted: (itemId: string, isQuoted: boolean) => void;
   isSaving: boolean;
+  /** Save a listed quantity as typed: a number, or "1/2", "2 o 3". */
+  onListedQuantityChange?: (itemId: string, typed: string) => void;
   /** Listed for the customer to buy: quantities, no money. */
   isSupplied?: boolean;
 }) {
@@ -462,13 +468,22 @@ function ItemGroup({
               ) : null}
 
               {/* A job quoted whole, or a bare name on the list, shows none. */}
-              {isWholeJob(item) || (isSupplied && !item.unit && item.quantity === 1) ? null : (
+              {isWholeJob(item) ||
+              (isSupplied && !item.unit && item.quantity === 1 && !item.quantity_text) ? null : (
                 <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted">
-                  <QuantityCell
-                    item={item}
-                    isSaving={isSaving}
-                    onSave={(quantity) => onQuantityChange(item.id, quantity)}
-                  />
+                  {isSupplied ? (
+                    <ListedQuantityCell
+                      item={item}
+                      isSaving={isSaving}
+                      onSave={(typed) => onListedQuantityChange?.(item.id, typed)}
+                    />
+                  ) : (
+                    <QuantityCell
+                      item={item}
+                      isSaving={isSaving}
+                      onSave={(quantity) => onQuantityChange(item.id, quantity)}
+                    />
+                  )}
                   {isSupplied ? (
                     <span>{item.unit}</span>
                   ) : (
@@ -608,6 +623,79 @@ function QuantityCell({
         }
       }}
       className="no-print w-20 rounded-md border border-primary bg-background px-1.5 py-0.5 text-xs outline-none"
+    />
+  );
+}
+
+/**
+ * A listed line's quantity, edited as text.
+ *
+ * The list only informs, so the quantity is whatever makes sense to write:
+ * "3", "1/2", "2 o 3". It shows what was written, or the number when nothing
+ * was.
+ */
+function ListedQuantityCell({
+  item,
+  isSaving,
+  onSave,
+}: {
+  item: BudgetItem;
+  isSaving: boolean;
+  onSave: (typed: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const shown = item.quantity_text || formatQuantity(item.quantity);
+
+  function commit() {
+    setIsEditing(false);
+    const typed = value.trim();
+
+    // Blank leaves it as it was: a listed line always says how much.
+    if (!typed || typed === shown) {
+      return;
+    }
+
+    onSave(typed);
+  }
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={() => {
+          setValue(shown);
+          setIsEditing(true);
+        }}
+        title="Tocá para cambiar la cantidad (acepta 1/2, 2 o 3…)"
+        aria-label={`Cantidad de ${item.description}`}
+        className="-mx-1.5 -my-1 rounded-md px-1.5 py-1 tabular-nums underline decoration-dotted decoration-muted/60 underline-offset-2 transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-50"
+      >
+        {shown}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      maxLength={MAX_QUANTITY_TEXT}
+      value={value}
+      aria-label={`Cantidad de ${item.description}`}
+      onFocus={(event) => event.target.select()}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          commit();
+        }
+        if (event.key === "Escape") {
+          setIsEditing(false);
+        }
+      }}
+      className="no-print w-24 rounded-md border border-primary bg-background px-1.5 py-0.5 text-xs outline-none"
     />
   );
 }

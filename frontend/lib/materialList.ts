@@ -12,9 +12,23 @@ export interface ParsedMaterial {
   name: string;
   /** Left out when the line carries no number. */
   quantity: number | null;
+  /** A quantity that is not a plain number — "1/2", "2 o 3" — kept as written. */
+  quantityText: string | null;
   /** Left out when no unit word was recognised. */
   unit: string;
 }
+
+/** How a listed quantity is stored: a number when it is one, else as written. */
+export interface ListedQuantity {
+  quantity: number;
+  quantity_text: string | null;
+}
+
+/** Longest written quantity the database keeps. */
+export const MAX_QUANTITY_TEXT = 40;
+
+/** Digits, thousands grouped with dots, an optional decimal comma. */
+const PLAIN_NUMBER = /^(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$/;
 
 /** Words that name a unit rather than a material. */
 const UNITS = new Map<string, string>([
@@ -59,6 +73,33 @@ function toQuantity(text: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+/**
+ * Read what was typed as a listed quantity.
+ *
+ * "3", "2,5" and "1.000" stay numbers, as before. Anything else — "1/2", "½",
+ * "2 o 3", "a definir" — is kept exactly as written, and the numeric quantity
+ * is left at one. Blank means no quantity at all.
+ */
+export function readListedQuantity(text: string): ListedQuantity | null {
+  const written = text.trim().slice(0, MAX_QUANTITY_TEXT);
+
+  if (!written) {
+    return null;
+  }
+
+  // A number the way it is written here: 1.000, 2,5, 12. Anything else — "2.5"
+  // included — is kept as typed rather than risk reading it wrong.
+  const number = PLAIN_NUMBER.test(written) ? toQuantity(written) : null;
+
+  return number !== null
+    ? { quantity: number, quantity_text: null }
+    : { quantity: 1, quantity_text: written };
+}
+
+/** Starts a line with a quantity that is written rather than a plain number. */
+const WRITTEN_QUANTITY =
+  /^(\d+(?:[.,]\d+)?\s+(?:o|a|y)\s+\d+(?:[.,]\d+)?|[\d½¼¾⅓⅔][\d½¼¾⅓⅔.,/\-+~]*)(?=\s|$)/i;
+
 /** Fold accents and case, to look a word up among the units. */
 function fold(word: string): string {
   return word
@@ -85,21 +126,26 @@ export function parseMaterialList(text: string): ParsedMaterial[] {
       continue;
     }
 
-    const words = line.split(/\s+/);
-    const quantity = toQuantity(words[0]);
+    const lead = WRITTEN_QUANTITY.exec(line);
 
-    if (quantity === null) {
-      parsed.push({ name: tidy(line), quantity: null, unit: "" });
+    if (!lead) {
+      parsed.push({ name: tidy(line), quantity: null, quantityText: null, unit: "" });
       continue;
     }
 
-    const rest = words.slice(1);
+    const read = readListedQuantity(lead[1]);
+    const rest = line.slice(lead[0].length).trim().split(/\s+/).filter(Boolean);
     const unit = rest.length > 1 ? UNITS.get(fold(rest[0])) : undefined;
     const name = tidy((unit ? rest.slice(1) : rest).join(" "));
 
     // A number with nothing after it names nothing, so it is dropped.
-    if (name) {
-      parsed.push({ name, quantity, unit: unit ?? "" });
+    if (name && read) {
+      parsed.push({
+        name,
+        quantity: read.quantity_text === null ? read.quantity : null,
+        quantityText: read.quantity_text,
+        unit: unit ?? "",
+      });
     }
   }
 

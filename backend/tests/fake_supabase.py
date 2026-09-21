@@ -69,6 +69,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "standard_task_id": None,
         "detail": None,
         "note": None,
+        "quantity_text": None,
         "is_quoted": True,
         "sort_order": 0,
     },
@@ -296,6 +297,9 @@ class FakeDatabase:
                 raise FakeAPIError("budget_items_quantity_check", CHECK_VIOLATION)
             if float(row["unit_price"]) < 0:
                 raise FakeAPIError("budget_items_unit_price_check", CHECK_VIOLATION)
+            written = row.get("quantity_text")
+            if written is not None and not 1 <= len(written) <= 40:
+                raise FakeAPIError("budget_items_quantity_text_length", CHECK_VIOLATION)
             kind = row.get("item_type")
             material, task = row.get("material_id"), row.get("standard_task_id")
             matches = (

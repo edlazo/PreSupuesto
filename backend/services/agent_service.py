@@ -66,6 +66,8 @@ How a budget is written here:
 * materials are NEVER priced. The customer buys them; the budget only tells
   them what will be bought. Add each one as a `material` line (a name, with a
   quantity and unit when the user gives them) and never mention what it costs.
+  A quantity that is not a plain number — "1/2", "2 o 3", "a definir" — goes in
+  `quantity_text`, exactly as the user said it.
   list_materials only helps spell a name and pick its unit.
 
 Always use the tools instead of guessing:

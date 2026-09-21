@@ -61,7 +61,10 @@ function Workspace() {
   }, [reload]);
 
   return (
-    <div className="flex h-[calc(100dvh-10.5rem)] min-h-[26rem] flex-col gap-3 md:h-[calc(100dvh-7.5rem)] md:min-h-[32rem] md:gap-4">
+    // The budget side flows with the page, so a short screen scrolls to the
+    // preview instead of squeezing it under the form. Only the chat keeps a
+    // fixed height: it scrolls its own messages.
+    <div className="flex flex-col gap-3 md:gap-4">
       {/* Phones show one panel at a time. */}
       <div
         role="tablist"
@@ -89,7 +92,7 @@ function Workspace() {
       </div>
 
       <div
-        className={`min-h-0 flex-1 md:grid md:gap-4 ${
+        className={`md:grid md:items-start md:gap-4 ${
           isAssistantOpen
             ? "md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]"
             : "md:grid-cols-[minmax(0,1fr)]"
@@ -100,15 +103,12 @@ function Workspace() {
           id="budget-panel"
           role="tabpanel"
           aria-labelledby="budget-tab"
-          className={`flex h-full min-h-0 flex-col gap-3 md:flex ${
+          className={`min-w-0 flex-col gap-3 md:flex ${
             activePanel === "budget" ? "flex" : "hidden"
           }`}
         >
           <ManualEntryForm />
-
-          <div className="min-h-0 flex-1">
-            <BudgetPreview />
-          </div>
+          <BudgetPreview />
         </div>
 
         {/* Assistant side: a tab on phones, a panel you open on desktop. */}
@@ -116,9 +116,11 @@ function Workspace() {
           id="chat-panel"
           role="tabpanel"
           aria-labelledby="chat-tab"
-          className={`h-full min-h-0 ${activePanel === "chat" ? "block" : "hidden"} ${
-            isAssistantOpen ? "md:block" : "md:hidden"
-          }`}
+          // On a phone it fills the screen under the tabs; on desktop it stays
+          // beside the budget while the page scrolls.
+          className={`h-[calc(100dvh-10.5rem)] min-h-[24rem] md:sticky md:top-20 md:h-[calc(100dvh-7rem)] ${
+            activePanel === "chat" ? "block" : "hidden"
+          } ${isAssistantOpen ? "md:block" : "md:hidden"}`}
         >
           <ChatPanel onTurnComplete={handleTurnComplete} onClose={() => setIsAssistantOpen(false)} />
         </div>

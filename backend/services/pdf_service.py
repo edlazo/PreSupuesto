@@ -491,14 +491,20 @@ def _supplied_block(
         # Some entries are just a name — "madera" — with nothing to measure.
         unit = str(item.get("unit") or "")
         measured = bool(unit) or _to_float(item.get("quantity")) != 1
+        # A quantity written by hand ("1/2", "2 o 3") is printed as written.
+        written = str(item.get("quantity_text") or "").strip()
+
+        if written:
+            quantity_text = escape(written)
+        elif measured:
+            quantity_text = format_quantity(item.get("quantity"))
+        else:
+            quantity_text = ""
 
         rows.append(
             [
                 Paragraph(_describe(item), styles["cell"]),
-                Paragraph(
-                    format_quantity(item.get("quantity")) if measured else "",
-                    styles["cell_right"],
-                ),
+                Paragraph(quantity_text, styles["cell_right"]),
                 Paragraph(escape(unit), styles["cell"]),
             ]
         )
