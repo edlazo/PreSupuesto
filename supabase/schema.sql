@@ -99,6 +99,38 @@ create or replace trigger clients_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- -----------------------------------------------------------------------------
+-- pricing_factors
+--
+-- Site conditions that move the price of a job: a flat, nowhere to park,
+-- hours imposed by the client. They are how the number is reached, not line
+-- items the customer sees.
+-- -----------------------------------------------------------------------------
+create table if not exists public.pricing_factors (
+  id          uuid primary key default gen_random_uuid(),
+  code        text not null unique,
+  label       text not null,
+  description text,
+  -- What it adds, e.g. 40 for "a flat costs 40% more".
+  percent     numeric(6, 2) not null check (percent >= -100 and percent <= 500),
+  -- Which part of the budget it is computed on.
+  applies_to  text not null check (applies_to in ('labor', 'materials')),
+  -- Conditions sharing a group are alternatives: buying the materials costs
+  -- 15% in the province and 20% in the capital, never both.
+  exclusive_group text,
+  is_active   boolean not null default true,
+  sort_order  integer not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists pricing_factors_sort_order_idx
+  on public.pricing_factors (sort_order, label);
+
+create or replace trigger pricing_factors_set_updated_at
+  before update on public.pricing_factors
+  for each row execute function public.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- budgets
 -- -----------------------------------------------------------------------------
 create table if not exists public.budgets (
@@ -117,6 +149,9 @@ create table if not exists public.budgets (
   tax_amount    numeric(14, 2) generated always as (round(subtotal * tax_rate / 100, 2)) stored,
   total         numeric(14, 2) generated always as (subtotal + round(subtotal * tax_rate / 100, 2)) stored,
   valid_until   date,
+  -- The conditions that applied, frozen the way prices are frozen onto the
+  -- lines: changing a percentage later must not rewrite old quotes.
+  site_factors  jsonb not null default '[]'::jsonb,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -141,6 +176,10 @@ create table if not exists public.budget_items (
   material_id      uuid references public.materials (id) on delete restrict,
   standard_task_id uuid references public.standard_tasks (id) on delete restrict,
   description      text not null,
+  -- Bullet lines covered by this price, one per line, and the condition that
+  -- travels next to it: a quote written by hand reads that way.
+  detail           text,
+  note             text,
   unit             text not null,
   quantity         numeric(12, 3) not null check (quantity > 0),
   unit_price       numeric(12, 2) not null check (unit_price >= 0),
@@ -201,6 +240,30 @@ alter table public.standard_tasks enable row level security;
 alter table public.clients        enable row level security;
 alter table public.budgets        enable row level security;
 alter table public.budget_items   enable row level security;
+alter table public.pricing_factors enable row level security;
+
+-- -----------------------------------------------------------------------------
+-- Seed data: the conditions that move a price, with their percentages
+-- -----------------------------------------------------------------------------
+insert into public.pricing_factors
+  (code, label, description, percent, applies_to, exclusive_group, sort_order)
+values
+  ('departamento', 'Departamento',
+   'La obra es en un departamento: ascensor, escaleras y subir materiales',
+   40, 'labor', null, 10),
+  ('sin_estacionamiento', 'Sin lugar para estacionar',
+   'No hay dónde dejar la camioneta cerca de la obra',
+   40, 'labor', null, 20),
+  ('horarios_restringidos', 'Horarios restringidos',
+   'El cliente o la administración imponen los horarios de trabajo',
+   50, 'labor', null, 30),
+  ('compra_materiales_provincia', 'Compra de materiales · Provincia',
+   'Los materiales los compra el contratista, para una obra en provincia',
+   15, 'materials', 'compra_materiales', 40),
+  ('compra_materiales_capital', 'Compra de materiales · Capital',
+   'Los materiales los compra el contratista, para una obra en Capital',
+   20, 'materials', 'compra_materiales', 50)
+on conflict (code) do nothing;
 
 -- -----------------------------------------------------------------------------
 -- Seed data: construction materials with initial unit prices in ARS

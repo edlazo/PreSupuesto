@@ -61,7 +61,8 @@ class Settings(BaseSettings):
 
     # --- Budget defaults ----------------------------------------------------
     default_currency: str = "ARS"
-    default_tax_rate: float = 21.0
+    # Quotes are written without VAT unless the user asks for it.
+    default_tax_rate: float = 0.0
 
     @property
     def cors_origin_list(self) -> list[str]:

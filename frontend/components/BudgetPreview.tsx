@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useBlueRate } from "@/components/BlueRateProvider";
 import { useBudgetWorkspace } from "@/components/BudgetWorkspaceProvider";
 import ClientField from "@/components/ClientField";
+import SiteConditions from "@/components/SiteConditions";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import type { Budget, BudgetItem, BudgetStatus } from "@/lib/types";
@@ -59,6 +60,11 @@ function roundToCents(amount: number): number {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
+/** True when the line is a job quoted whole, with no quantity to speak of. */
+function isWholeJob(item: BudgetItem): boolean {
+  return item.unit === "global" && item.quantity === 1;
+}
+
 /** Sum the line totals of a group of items. */
 function sumLines(items: BudgetItem[]): number {
   return items.reduce((total, item) => total + item.line_total, 0);
@@ -77,6 +83,7 @@ export default function BudgetPreview() {
     removeItem,
     updateItemQuantity,
     assignClient,
+    setSiteFactors,
     reload,
     startNewBudget,
   } = useBudgetWorkspace();
@@ -136,7 +143,7 @@ export default function BudgetPreview() {
 
   const materials = view?.items.filter((item) => item.item_type === "material") ?? [];
   const labor = view?.items.filter((item) => item.item_type === "task") ?? [];
-  const other = view?.items.filter((item) => item.item_type === "custom") ?? [];
+  const packages = view?.items.filter((item) => item.item_type === "custom") ?? [];
   const currency = displayCurrency;
 
   return (
@@ -261,6 +268,14 @@ export default function BudgetPreview() {
             ) : null}
 
             <ItemGroup
+              title="Trabajos"
+              items={packages}
+              currency={currency}
+              onRemove={handleRemove}
+              onQuantityChange={handleQuantityChange}
+              isSaving={isSaving}
+            />
+            <ItemGroup
               title="Materiales"
               items={materials}
               currency={currency}
@@ -276,26 +291,30 @@ export default function BudgetPreview() {
               onQuantityChange={handleQuantityChange}
               isSaving={isSaving}
             />
-            <ItemGroup
-              title="Otros costos"
-              items={other}
-              currency={currency}
-              onRemove={handleRemove}
-              onQuantityChange={handleQuantityChange}
+
+            <SiteConditions
+              budget={budget}
               isSaving={isSaving}
+              onChange={(codes) => void setSiteFactors(codes)}
             />
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
-              <Row label="Materiales" value={formatCurrency(sumLines(materials), currency)} />
-              <Row label="Mano de obra" value={formatCurrency(sumLines(labor), currency)} />
-              {other.length > 0 ? (
-                <Row label="Otros costos" value={formatCurrency(sumLines(other), currency)} />
+              {packages.length > 0 ? (
+                <Row label="Trabajos" value={formatCurrency(sumLines(packages), currency)} />
+              ) : null}
+              {materials.length > 0 ? (
+                <Row label="Materiales" value={formatCurrency(sumLines(materials), currency)} />
+              ) : null}
+              {labor.length > 0 ? (
+                <Row label="Mano de obra" value={formatCurrency(sumLines(labor), currency)} />
               ) : null}
               <Row label="Subtotal" value={formatCurrency(view.subtotal, currency)} />
-              <Row
-                label={`IVA (${formatQuantity(view.tax_rate)}%)`}
-                value={formatCurrency(view.tax_amount, currency)}
-              />
+              {view.tax_rate > 0 ? (
+                <Row
+                  label={`IVA (${formatQuantity(view.tax_rate)}%)`}
+                  value={formatCurrency(view.tax_amount, currency)}
+                />
+              ) : null}
               <div className="flex items-center justify-between border-t border-border pt-3 text-base font-semibold">
                 <dt>Total</dt>
                 <dd>{formatCurrency(view.total, currency)}</dd>
@@ -356,16 +375,39 @@ function ItemGroup({
           <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm break-words">{item.description}</p>
-              <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted">
-                <QuantityCell
-                  item={item}
-                  isSaving={isSaving}
-                  onSave={(quantity) => onQuantityChange(item.id, quantity)}
-                />
-                <span>
-                  {item.unit} × {formatCurrency(item.unit_price, currency)}
-                </span>
-              </p>
+
+              {/* What the price covers, as it was written line by line. */}
+              {item.detail ? (
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
+                  {item.detail
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((line, index) => (
+                      <li key={index} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
+
+              {/* A job quoted whole has no quantity worth showing. */}
+              {isWholeJob(item) ? null : (
+                <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted">
+                  <QuantityCell
+                    item={item}
+                    isSaving={isSaving}
+                    onSave={(quantity) => onQuantityChange(item.id, quantity)}
+                  />
+                  <span>
+                    {item.unit} × {formatCurrency(item.unit_price, currency)}
+                  </span>
+                </p>
+              )}
+
+              {item.note ? (
+                <p className="mt-1 text-xs italic text-muted break-words">{item.note}</p>
+              ) : null}
             </div>
             <span className="flex shrink-0 items-center gap-2">
               <span className="whitespace-nowrap text-sm font-medium">

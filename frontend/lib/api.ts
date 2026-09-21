@@ -15,6 +15,8 @@ import type {
   Material,
   MaterialCreate,
   MaterialUpdate,
+  PricingFactor,
+  PricingFactorUpdate,
   StandardTask,
 } from "./types";
 
@@ -152,6 +154,24 @@ export function bulkUpdateMaterialPrices(
 export function listStandardTasks(search?: string): Promise<StandardTask[]> {
   const query = search ? `?search=${encodeURIComponent(search)}` : "";
   return request<StandardTask[]>(`/api/standard-tasks${query}`);
+}
+
+// --- Pricing factors --------------------------------------------------------
+/** The conditions that move a price: a flat, nowhere to park, imposed hours. */
+export function listPricingFactors(onlyActive = false): Promise<PricingFactor[]> {
+  return request<PricingFactor[]>(
+    `/api/pricing-factors${onlyActive ? "?only_active=true" : ""}`,
+  );
+}
+
+export function updatePricingFactor(
+  id: string,
+  payload: PricingFactorUpdate,
+): Promise<PricingFactor> {
+  return request<PricingFactor>(`/api/pricing-factors/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 // --- Clients ----------------------------------------------------------------

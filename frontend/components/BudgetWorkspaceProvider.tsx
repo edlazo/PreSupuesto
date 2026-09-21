@@ -36,6 +36,8 @@ interface BudgetWorkspaceValue {
   updateItemQuantity: (itemId: string, quantity: number) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
   assignClient: (clientId: string) => Promise<void>;
+  /** Record which site conditions apply, frozen with their percentages. */
+  setSiteFactors: (codes: string[]) => Promise<void>;
   /** Put the newest stored budget on screen — what the agent just wrote. */
   reload: () => void;
   /** Leave the current budget and start an empty one. */
@@ -181,6 +183,26 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const setSiteFactors = useCallback(
+    async (codes: string[]) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudget(budget.id, { site_factors: codes }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudieron guardar las condiciones.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const startNewBudget = useCallback(async () => {
     setIsSaving(true);
 
@@ -208,6 +230,7 @@ export default function BudgetWorkspaceProvider({
       removeItem,
       updateItemQuantity,
       assignClient,
+      setSiteFactors,
       reload,
       startNewBudget,
       clearError,
@@ -221,6 +244,7 @@ export default function BudgetWorkspaceProvider({
       removeItem,
       updateItemQuantity,
       assignClient,
+      setSiteFactors,
       reload,
       startNewBudget,
       clearError,

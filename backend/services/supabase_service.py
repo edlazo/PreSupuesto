@@ -29,6 +29,7 @@ STANDARD_TASKS_TABLE = "standard_tasks"
 CLIENTS_TABLE = "clients"
 BUDGETS_TABLE = "budgets"
 BUDGET_ITEMS_TABLE = "budget_items"
+PRICING_FACTORS_TABLE = "pricing_factors"
 
 # PostgreSQL's unique_violation, raised when a code is already taken.
 UNIQUE_VIOLATION = "23505"
@@ -367,6 +368,50 @@ def get_standard_task_by_code(code: str) -> Optional[dict[str, Any]]:
     """Return a standard task by its code, or None when it does not exist."""
     query = get_client().table(STANDARD_TASKS_TABLE).select("*").eq("code", code).limit(1)
     return _first(_execute(query, action="get standard task by code"))
+
+
+# ---------------------------------------------------------------------------
+# Pricing factors
+# ---------------------------------------------------------------------------
+def list_pricing_factors(*, only_active: bool = False) -> list[dict[str, Any]]:
+    """List the site conditions that move a price, in display order."""
+    query = get_client().table(PRICING_FACTORS_TABLE).select("*")
+
+    if only_active:
+        query = query.eq("is_active", True)
+
+    query = query.order("sort_order").order("label")
+    return _execute(query, action="list pricing factors")
+
+
+def get_pricing_factor(factor_id: str) -> Optional[dict[str, Any]]:
+    """Return one pricing factor by id, or None when it does not exist."""
+    query = get_client().table(PRICING_FACTORS_TABLE).select("*").eq("id", factor_id).limit(1)
+    return _first(_execute(query, action="get pricing factor"))
+
+
+def get_pricing_factors_by_code(codes: list[str]) -> list[dict[str, Any]]:
+    """Return the factors named by these codes, in display order."""
+    if not codes:
+        return []
+
+    query = (
+        get_client()
+        .table(PRICING_FACTORS_TABLE)
+        .select("*")
+        .in_("code", codes)
+        .order("sort_order")
+    )
+    return _execute(query, action="read pricing factors")
+
+
+def update_pricing_factor(factor_id: str, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Change a factor — its percentage, its label, whether it is offered."""
+    if not payload:
+        return get_pricing_factor(factor_id)
+
+    query = get_client().table(PRICING_FACTORS_TABLE).update(payload).eq("id", factor_id)
+    return _first(_execute(query, action="update pricing factor"))
 
 
 # ---------------------------------------------------------------------------

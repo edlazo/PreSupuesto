@@ -113,6 +113,53 @@ class StandardTaskRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Pricing factors
+# ---------------------------------------------------------------------------
+FactorBase = Literal["labor", "materials"]
+
+
+class PricingFactorRead(BaseModel):
+    """A site condition that moves the price of a job."""
+
+    id: str
+    code: str
+    label: str
+    description: Optional[str] = None
+    percent: float
+    applies_to: FactorBase
+    exclusive_group: Optional[str] = Field(
+        default=None,
+        description="Conditions sharing a group are alternatives, never both",
+    )
+    is_active: bool
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PricingFactorUpdate(BaseModel):
+    """Payload to tune a factor. Every field is optional."""
+
+    label: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    percent: Optional[float] = Field(default=None, ge=-100, le=500)
+    is_active: Optional[bool] = None
+
+
+class AppliedFactor(BaseModel):
+    """A condition as it applied to one budget, frozen when it was chosen.
+
+    Prices are snapshotted onto budget lines for the same reason: raising a
+    percentage today must not rewrite a quote sent last month.
+    """
+
+    code: str
+    label: str
+    percent: float
+    applies_to: FactorBase
+
+
+# ---------------------------------------------------------------------------
 # Clients
 # ---------------------------------------------------------------------------
 class ClientCreate(BaseModel):
@@ -148,6 +195,8 @@ class BudgetItemRead(BaseModel):
     material_id: Optional[str] = None
     standard_task_id: Optional[str] = None
     description: str
+    detail: Optional[str] = None
+    note: Optional[str] = None
     unit: str
     quantity: float
     unit_price: float
@@ -180,6 +229,10 @@ class BudgetUpdate(BaseModel):
     site_address: Optional[str] = None
     status: Optional[BudgetStatus] = None
     valid_until: Optional[date] = None
+    site_factors: Optional[list[str]] = Field(
+        default=None,
+        description="Codes of the conditions that apply, frozen onto the budget",
+    )
 
 
 class BudgetItemCreate(BaseModel):
@@ -192,6 +245,16 @@ class BudgetItemCreate(BaseModel):
     material_id: Optional[str] = None
     standard_task_id: Optional[str] = None
     description: Optional[str] = Field(default=None, max_length=300)
+    detail: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Bullet lines covered by this price, one per line",
+    )
+    note: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Condition printed next to the price, e.g. a building restriction",
+    )
     unit: Optional[str] = Field(default=None, max_length=20)
     unit_price: Optional[float] = Field(default=None, ge=0)
     quantity: float = Field(gt=0, description="How much of it the job needs")
@@ -228,6 +291,7 @@ class BudgetRead(BaseModel):
     tax_amount: float
     total: float
     valid_until: Optional[date] = None
+    site_factors: list[AppliedFactor] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     items: list[BudgetItemRead] = Field(default_factory=list)

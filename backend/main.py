@@ -38,6 +38,8 @@ from models import (
     BudgetUpdate,
     ClientCreate,
     ClientRead,
+    PricingFactorRead,
+    PricingFactorUpdate,
     BulkPriceUpdateRequest,
     BulkPriceUpdateResponse,
     ChatRequest,
@@ -101,6 +103,11 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
     free line missing its price.
     """
     quantity = Decimal(str(payload.quantity))
+    # Bullets and the condition ride along whatever the line is priced from.
+    extras = {
+        "detail": (payload.detail or "").strip() or None,
+        "note": (payload.note or "").strip() or None,
+    }
 
     if payload.material_id and payload.standard_task_id:
         raise HTTPException(
@@ -121,6 +128,7 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
             "material_id": material["id"],
             "standard_task_id": None,
             "description": payload.description or material["name"],
+            **extras,
             "unit": material["unit"],
             "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
             "unit_price": float(Decimal(str(material["unit_price"]))),
@@ -136,15 +144,16 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
             "material_id": None,
             "standard_task_id": task["id"],
             "description": payload.description or task["name"],
+            **extras,
             "unit": task["unit"],
             "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
             "unit_price": float(Decimal(str(task["labor_unit_price"]))),
         }
 
-    if not payload.description or not payload.unit or payload.unit_price is None:
+    if not payload.description or payload.unit_price is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Una línea libre necesita descripción, unidad y precio",
+            detail="Una partida libre necesita descripción y precio",
         )
 
     return {
@@ -152,7 +161,9 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
         "material_id": None,
         "standard_task_id": None,
         "description": payload.description,
-        "unit": payload.unit,
+        **extras,
+        # A work package is quoted whole, so it carries no unit of measure.
+        "unit": payload.unit or "global",
         "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
         "unit_price": float(payload.unit_price),
     }
@@ -315,6 +326,50 @@ def list_standard_tasks(
         raise _handle_supabase_error(exc) from exc
 
     return [StandardTaskRead.model_validate(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Pricing factors
+#
+# The conditions that move a price — a flat, nowhere to park, hours imposed by
+# the client. They never reach the customer's copy: they are how the number is
+# reached.
+# ---------------------------------------------------------------------------
+@app.get("/api/pricing-factors", response_model=list[PricingFactorRead], tags=["pricing"])
+def list_pricing_factors(
+    only_active: bool = Query(default=False, description="Skip the ones switched off"),
+) -> list[PricingFactorRead]:
+    """List the conditions that can be applied to a budget."""
+    try:
+        rows = supabase_service.list_pricing_factors(only_active=only_active)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    return [PricingFactorRead.model_validate(row) for row in rows]
+
+
+@app.patch(
+    "/api/pricing-factors/{factor_id}",
+    response_model=PricingFactorRead,
+    tags=["pricing"],
+)
+def update_pricing_factor(factor_id: str, payload: PricingFactorUpdate) -> PricingFactorRead:
+    """Tune a condition: its percentage, its wording, whether it is offered.
+
+    Budgets keep a snapshot of what applied to them, so this only changes what
+    the next budget is offered.
+    """
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    try:
+        row = supabase_service.update_pricing_factor(factor_id, changes)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró la condición")
+
+    return PricingFactorRead.model_validate(row)
 
 
 # ---------------------------------------------------------------------------
@@ -550,6 +605,53 @@ def update_budget(budget_id: str, payload: BudgetUpdate) -> BudgetRead:
 
     if "valid_until" in changes:
         changes["valid_until"] = changes["valid_until"].isoformat()
+
+    # Codes come in; what goes to the database is a frozen copy of each
+    # condition, so tuning a percentage later leaves this quote alone.
+    if "site_factors" in changes:
+        codes = list(changes["site_factors"])
+
+        try:
+            factors = supabase_service.get_pricing_factors_by_code(codes)
+        except SupabaseServiceError as exc:
+            raise _handle_supabase_error(exc) from exc
+
+        known = {str(factor["code"]) for factor in factors}
+        missing = [code for code in codes if code not in known]
+
+        if missing:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la condición «{missing[0]}»",
+            )
+
+        # Two conditions from the same group are alternatives: buying the
+        # materials costs 15% in the province or 20% in the capital, not both.
+        seen_groups: dict[str, str] = {}
+
+        for factor in factors:
+            group = factor.get("exclusive_group")
+            if not group:
+                continue
+            if group in seen_groups:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"«{seen_groups[group]}» y «{factor['label']}» son alternativas, "
+                        "elegí una sola"
+                    ),
+                )
+            seen_groups[group] = str(factor["label"])
+
+        changes["site_factors"] = [
+            {
+                "code": factor["code"],
+                "label": factor["label"],
+                "percent": float(factor["percent"]),
+                "applies_to": factor["applies_to"],
+            }
+            for factor in factors
+        ]
 
     # A missing client would surface as a foreign key violation, whose generic
     # message says nothing useful, so it is checked first.

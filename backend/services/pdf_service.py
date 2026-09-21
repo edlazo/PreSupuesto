@@ -13,6 +13,8 @@ from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 from typing import Any, Optional
+# Cells are mini-HTML, so text typed by the user has to be escaped.
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
@@ -53,11 +55,15 @@ CURRENCY_NAMES = {
 }
 
 # The line groups, in the order they are printed.
+# Work packages carry the bulk of a quote, so they are printed first.
 ITEM_GROUPS = (
+    ("custom", "Trabajos"),
     ("material", "Materiales"),
     ("task", "Mano de obra"),
-    ("custom", "Otros costos"),
 )
+
+# A line quoted whole is priced as a job, not by the unit.
+WHOLE_JOB_UNIT = "global"
 
 # Budget statuses, as they are printed for the client.
 STATUS_LABELS = {
@@ -336,6 +342,31 @@ def _parties_block(
     return blocks
 
 
+def _is_whole_job(item: dict[str, Any]) -> bool:
+    """True when the line is a job priced whole, with no quantity to show."""
+    return str(item.get("unit") or "") == WHOLE_JOB_UNIT and _to_float(item.get("quantity")) == 1
+
+
+def _describe(item: dict[str, Any]) -> str:
+    """The description cell: the work, what it covers, and its condition.
+
+    A quote written by hand reads as a title, a few bullets under it and a
+    remark next to the price, so the cell is built the same way.
+    """
+    parts = [f"<b>{escape(str(item.get('description') or ''))}</b>"]
+
+    detail = str(item.get("detail") or "").strip()
+    if detail:
+        bullets = [line.strip() for line in detail.splitlines() if line.strip()]
+        parts.extend(f"• {escape(line)}" for line in bullets)
+
+    note = str(item.get("note") or "").strip()
+    if note:
+        parts.append(f"<i>{escape(note)}</i>")
+
+    return "<br/>".join(parts)
+
+
 def _items_table(
     budget: dict[str, Any],
     currency: str,
@@ -374,13 +405,23 @@ def _items_table(
         rows.append([Paragraph(f"<b>{label.upper()}</b>", styles["cell"]), "", "", "", ""])
 
         for item in group_items:
+            # A job quoted whole has no quantity worth printing: the reader
+            # wants the work described and one price.
+            whole_job = _is_whole_job(item)
+
             rows.append(
                 [
-                    Paragraph(str(item.get("description") or ""), styles["cell"]),
-                    Paragraph(str(item.get("unit") or ""), styles["cell"]),
-                    Paragraph(format_quantity(item.get("quantity")), styles["cell_right"]),
+                    Paragraph(_describe(item), styles["cell"]),
+                    Paragraph("" if whole_job else str(item.get("unit") or ""), styles["cell"]),
                     Paragraph(
-                        format_money(item.get("unit_price"), currency), styles["cell_right"]
+                        "" if whole_job else format_quantity(item.get("quantity")),
+                        styles["cell_right"],
+                    ),
+                    Paragraph(
+                        ""
+                        if whole_job
+                        else format_money(item.get("unit_price"), currency),
+                        styles["cell_right"],
                     ),
                     Paragraph(
                         format_money(item.get("line_total"), currency), styles["cell_right"]
@@ -436,20 +477,31 @@ def _totals_block(
             ]
         )
 
-    tax_rate = format_quantity(budget.get("tax_rate"))
-    rows.extend(
+    rows.append(
         [
-            [
-                Paragraph("<b>Subtotal</b>", styles["cell"]),
-                Paragraph(
-                    f"<b>{format_money(budget.get('subtotal'), currency)}</b>",
-                    styles["cell_right"],
-                ),
-            ],
+            Paragraph("<b>Subtotal</b>", styles["cell"]),
+            Paragraph(
+                f"<b>{format_money(budget.get('subtotal'), currency)}</b>",
+                styles["cell_right"],
+            ),
+        ]
+    )
+
+    # These quotes are written without VAT; the row only earns its place when
+    # a rate was actually set.
+    prints_tax = _to_float(budget.get("tax_rate")) > 0
+
+    if prints_tax:
+        tax_rate = format_quantity(budget.get("tax_rate"))
+        rows.append(
             [
                 Paragraph(f"IVA ({tax_rate}%)", styles["cell"]),
                 Paragraph(format_money(budget.get("tax_amount"), currency), styles["cell_right"]),
-            ],
+            ]
+        )
+
+    rows.extend(
+        [
             [
                 Paragraph("<b>TOTAL</b>", styles["cell"]),
                 Paragraph(
@@ -459,6 +511,10 @@ def _totals_block(
         ]
     )
 
+    # The rule sits above Subtotal, two or three rows from the end depending
+    # on whether the VAT row was printed.
+    subtotal_row = -3 if prints_tax else -2
+
     totals = Table(rows, colWidths=[40 * mm, 35 * mm], hAlign="RIGHT")
     totals.setStyle(
         TableStyle(
@@ -467,7 +523,7 @@ def _totals_block(
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("LINEABOVE", (0, -3), (-1, -3), 0.6, BORDER_COLOR),
+                ("LINEABOVE", (0, subtotal_row), (-1, subtotal_row), 0.6, BORDER_COLOR),
                 ("LINEABOVE", (0, -1), (-1, -1), 1.0, BRAND_COLOR),
                 ("BACKGROUND", (0, -1), (-1, -1), BAND_COLOR),
             ]

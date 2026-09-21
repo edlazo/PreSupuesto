@@ -167,7 +167,33 @@ export default function HelpGuide() {
             para sumar líneas, y abajo el presupuesto que se va armando.
           </p>
 
-          <Steps title="Para sumar una línea">
+          <p>
+            Hay dos formas de sumar una línea, y elegís cuál con el botón de arriba a la
+            derecha del formulario: <strong>Partida</strong> o <strong>Del catálogo</strong>.
+          </p>
+
+          <Steps title="Partida: describís el trabajo y ponés el precio">
+            <li>
+              En <strong>Trabajo</strong> escribí qué vas a hacer, como se lo contarías al
+              cliente: <em>&ldquo;Demoler la pared que está más alta que el techo&rdquo;</em>.
+            </li>
+            <li>
+              En <strong>Precio del trabajo</strong> va el número entero, con puntos o sin
+              ellos: <Code>1.600.000</Code> o <Code>1600000</Code>, lo mismo da.
+            </li>
+            <li>
+              En <strong>Qué incluye</strong> podés poner, <strong>una por renglón</strong>,
+              las cosas que entran en ese precio. Salen como viñetas abajo del título, en la
+              pantalla y en el PDF.
+            </li>
+            <li>
+              En <strong>Aclaración</strong> va lo que condiciona el precio:{" "}
+              <em>&ldquo;con las restricciones de la administración&rdquo;</em>. Se imprime
+              en bastardilla al lado de la partida.
+            </li>
+          </Steps>
+
+          <Steps title="Del catálogo: cobrás por cantidad">
             <li>
               Escribí en <strong>Material o mano de obra</strong> lo que buscás: sirve el
               nombre, la categoría o el código. Aparecen juntos los materiales y las
@@ -209,6 +235,24 @@ export default function HelpGuide() {
                 aumento posterior no te cambia este presupuesto.
               </li>
             </ul>
+          </Callout>
+
+          <Callout title="Lo que cambia el precio">
+            <p>
+              Abajo del presupuesto está <strong>Condiciones de obra</strong>. Marcá lo que
+              corresponda —departamento, sin lugar para estacionar, horarios impuestos— y te
+              dice cuánto debería salir con esos recargos, redondeado a los <Code>50.000</Code>.
+              Los porcentajes se suman entre sí, y los cambiás tocándolos.
+            </p>
+            <p className="mt-2">
+              Si los materiales los comprás vos, elegí <strong>Provincia</strong> o{" "}
+              <strong>Capital</strong>: son alternativas, nunca las dos, y se cobran sobre el
+              valor de los materiales en lugar de la mano de obra.
+            </p>
+            <p className="mt-2">
+              <strong>Es solo para vos.</strong> El recargo no se imprime: el cliente ve el
+              precio que vos escribís en cada partida, y nada más.
+            </p>
           </Callout>
 
           <Callout title="Para quién es">

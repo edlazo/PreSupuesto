@@ -81,6 +81,38 @@ export interface ClientCreate {
   notes?: string | null;
 }
 
+/** A site condition that moves the price of a job. */
+export interface PricingFactor {
+  id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  percent: number;
+  applies_to: "labor" | "materials";
+  /** Conditions sharing a group are alternatives, never both. */
+  exclusive_group: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload accepted by PATCH /api/pricing-factors/{id}. */
+export interface PricingFactorUpdate {
+  label?: string;
+  description?: string | null;
+  percent?: number;
+  is_active?: boolean;
+}
+
+/** A condition as it applied to one budget, frozen when it was chosen. */
+export interface AppliedFactor {
+  code: string;
+  label: string;
+  percent: number;
+  applies_to: "labor" | "materials";
+}
+
 /** Payload accepted by PATCH /api/budgets/{id}. Every field is optional. */
 export interface BudgetUpdate {
   title?: string;
@@ -89,6 +121,8 @@ export interface BudgetUpdate {
   site_address?: string | null;
   status?: BudgetStatus;
   valid_until?: string | null;
+  /** Codes of the conditions that apply. */
+  site_factors?: string[];
 }
 
 /** Payload accepted by POST /api/budgets. */
@@ -110,6 +144,10 @@ export interface BudgetItemCreate {
   material_id?: string | null;
   standard_task_id?: string | null;
   description?: string | null;
+  /** Bullet lines covered by this price, one per line. */
+  detail?: string | null;
+  /** Condition printed next to the price. */
+  note?: string | null;
   unit?: string | null;
   unit_price?: number | null;
   quantity: number;
@@ -129,6 +167,8 @@ export interface BudgetItem {
   material_id: string | null;
   standard_task_id: string | null;
   description: string;
+  detail: string | null;
+  note: string | null;
   unit: string;
   quantity: number;
   unit_price: number;
@@ -150,6 +190,7 @@ export interface Budget {
   tax_amount: number;
   total: number;
   valid_until: string | null;
+  site_factors: AppliedFactor[];
   created_at: string;
   updated_at: string;
   items: BudgetItem[];
