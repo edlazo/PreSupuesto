@@ -18,9 +18,22 @@ import type {
 } from "./types";
 import { expireSession, getSessionToken } from "./session";
 
+/**
+ * Where the API lives. Deployed, the API is served from the same domain as
+ * the app (Vercel Services routes /api/* to it), so the base is empty and
+ * requests stay relative. Locally it runs apart, on port 8000, unless
+ * NEXT_PUBLIC_API_URL says otherwise.
+ */
 const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production" ? "" : "http://127.0.0.1:8000")
 ).replace(/\/$/, "");
+
+/** How to name the API in an error, when it cannot be reached. */
+const UNREACHABLE =
+  API_BASE_URL === ""
+    ? "No se puede conectar con el servidor. Revisá tu conexión y probá de nuevo."
+    : `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`;
 
 /** An error carrying the HTTP status, so callers can react to 404 or 409. */
 export class ApiError extends Error {
@@ -84,7 +97,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new ApiError(
-      `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`,
+      UNREACHABLE,
       0,
     );
   }
@@ -275,7 +288,7 @@ export async function downloadBudgetPdf(
     );
   } catch {
     throw new ApiError(
-      `No se puede conectar con la API en ${API_BASE_URL}. ¿Está levantado el backend?`,
+      UNREACHABLE,
       0,
     );
   }
