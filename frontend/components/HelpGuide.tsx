@@ -232,8 +232,12 @@ export default function HelpGuide() {
             Si te resulta más cómodo dictarlo que cargarlo, abrí{" "}
             <Button>🤖 Asistente IA</Button> en el Escritorio (en el celular es la
             solapa <strong>🤖 Asistente</strong>). Escribile como le hablarías a alguien
-            del oficio: busca los precios de mano de obra en tu catálogo y hace las cuentas. Todo lo que
-            cargue va al mismo presupuesto que armás a mano.
+            del oficio. Todo lo que cargue va al mismo presupuesto que armás a mano.
+          </p>
+          <p>
+            Trabaja igual que vos: el trabajo va con el precio que le digas, y los
+            materiales van a la lista <strong>sin precio</strong>, solo para que el cliente
+            sepa qué se va a comprar. Si no le decís cuánto cobrás una partida, te lo pregunta.
           </p>
 
           <Steps title="Para calcular un trabajo">
@@ -256,11 +260,9 @@ export default function HelpGuide() {
             <h3 className="text-sm font-semibold">Ejemplos para copiar</h3>
             <ul className="mt-3 space-y-2">
               {[
-                "Pared de ladrillo común de 3x2,5 m",
-                "Presupuestá 15 m² de piso de porcelanato con 10% de desperdicio",
-                "¿Qué materiales tenés para albañilería y a cuánto están?",
+                "Refacción de baño completa, $ 1.600.000",
+                "Materiales: 10 bolsas de plasticor, 3 m3 de arena y madera",
                 "Agregale 2 bocas de luz y una boca de agua",
-                "Sumale 10% de desperdicio a los ladrillos",
                 "Guardalo como presupuesto para Ana Torres",
               ].map((example) => (
                 <li
@@ -399,15 +401,6 @@ export default function HelpGuide() {
             <Problem question="Dice “Sin cotización” arriba">
               No se pudo consultar el dólar blue. Tocá el botón de actualizar; mientras
               tanto podés seguir trabajando en pesos.
-            </Problem>
-            <Problem question="No me deja eliminar un material">
-              Es porque ya lo usa un presupuesto guardado. Editalo y destildá{" "}
-              <strong>Activo</strong>.
-            </Problem>
-            <Problem question="Los precios me quedaron mal después de un aumento">
-              Aplicá el porcentaje al revés para volver atrás (si subiste 10%, aplicá{" "}
-              <Code>-9,1</Code>) o corregí a mano los que estén mal. Conviene revisar antes
-              de confirmar.
             </Problem>
           </dl>
         </GuideSection>

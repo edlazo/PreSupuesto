@@ -1,7 +1,7 @@
 """MCP server exposing the PreSupuesto budgeting tools to Hermes Agent.
 
 Hermes discovers external tools through MCP, so this process is what lets the
-agent read materials, price estimates, manage clients and create budgets. It
+agent list materials, price estimates, manage clients and create budgets. It
 speaks MCP over stdio: Hermes spawns it, so nothing listens on a port.
 
 Register it in `~/.hermes/config.yaml` (see `hermes.config.example.yaml`):
@@ -84,7 +84,8 @@ server: Server[object] = Server(
     version="0.1.0",
     instructions=(
         "Tools to build construction and renovation budgets for PreSupuesto: "
-        "read the materials and standard tasks catalogs, price estimates, "
+        "list the materials the customer buys (never priced), read the standard "
+        "tasks catalog, price estimates, "
         "manage clients, and store budgets."
     ),
     on_list_tools=on_list_tools,

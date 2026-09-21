@@ -5,8 +5,8 @@ import { ApiError, sendChatMessage } from "@/lib/api";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const SUGGESTIONS = [
-  "¿Qué materiales tenés para albañilería?",
-  "Calculá un muro de ladrillos de 20 m² con 10% de desperdicio",
+  "Refacción de baño completa, $ 1.600.000",
+  "Materiales: 10 bolsas de plasticor, 3 m3 de arena y madera",
   "Armá un presupuesto para refaccionar un baño de 12 m²",
 ] as const;
 
@@ -138,7 +138,7 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
             <div>
               <p className="text-sm font-medium">Contale qué trabajo hay que presupuestar</p>
               <p className="mt-1 text-sm text-muted">
-                El agente lee el catálogo de materiales y calcula los precios por vos.
+                Carga el trabajo con tu precio y los materiales en la lista, sin precio.
               </p>
             </div>
             <div className="flex w-full max-w-md flex-col gap-2">

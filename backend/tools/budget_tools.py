@@ -63,13 +63,14 @@ def _quantity(value: Decimal) -> Decimal:
 def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
     """Resolve catalog prices and compute the total for every line.
 
-    Each incoming item must carry a quantity plus one of:
+    Each incoming item carries one of:
 
-    * ``material_code`` — priced from the materials catalog;
-    * ``task_code``     — priced from the standard tasks catalog;
-    * ``description`` + ``unit`` + ``unit_price`` — a free line.
-
-    Materials also accept ``waste_percent``, which increases the quantity.
+    * ``material_code`` or ``material`` — a material the customer buys, listed
+      with no price: what it costs is the contractor's business, so it never
+      adds to the total. The quantity is optional ("madera" is enough);
+    * ``task_code``     — labour priced from the standard tasks catalog;
+    * ``description`` + ``unit_price`` — a work package priced whole, with
+      optional ``detail`` bullets and a ``note`` printed next to the price.
 
     Raises ValueError when an item is malformed or a code does not exist.
     """
@@ -82,41 +83,53 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
         if not isinstance(raw, dict):
             raise ValueError(f"item {index} must be an object")
 
-        quantity = _to_decimal(raw.get("quantity"), f"items[{index}].quantity")
+        material_code = (raw.get("material_code") or "").strip()
+        material_name = (raw.get("material") or "").strip()
+        task_code = (raw.get("task_code") or "").strip()
+        is_material = bool(material_code or material_name)
+
+        if is_material and task_code:
+            raise ValueError(f"item {index} cannot be a material and a task at once")
+
+        # A listed material may carry no quantity: it is then a bare name,
+        # stored as one of it with no unit, the way the Lista form does.
+        has_quantity = raw.get("quantity") is not None
+        if not has_quantity and not is_material:
+            raise ValueError(f"items[{index}].quantity is required for a priced line")
+
+        quantity = (
+            _to_decimal(raw.get("quantity"), f"items[{index}].quantity")
+            if has_quantity
+            else Decimal("1")
+        )
         if quantity <= 0:
             raise ValueError(f"items[{index}].quantity must be greater than zero")
 
-        material_code = (raw.get("material_code") or "").strip()
-        task_code = (raw.get("task_code") or "").strip()
+        if is_material:
+            material = None
+            if material_code:
+                material = supabase_service.get_material_by_code(material_code)
+                if material is None:
+                    raise ValueError(f"material code '{material_code}' does not exist")
 
-        if material_code and task_code:
-            raise ValueError(f"item {index} cannot carry both 'material_code' and 'task_code'")
-
-        if material_code:
-            material = supabase_service.get_material_by_code(material_code)
-            if material is None:
-                raise ValueError(f"material code '{material_code}' does not exist")
-
-            waste_percent = _to_decimal(raw.get("waste_percent", 0), f"items[{index}].waste_percent")
-            if waste_percent < 0:
-                raise ValueError(f"items[{index}].waste_percent cannot be negative")
-
-            effective_quantity = _quantity(quantity * (Decimal("1") + waste_percent / Decimal("100")))
-            unit_price = _money(_to_decimal(material["unit_price"], "unit_price"))
+            unit = ""
+            if has_quantity:
+                unit = (raw.get("unit") or "").strip() or (material["unit"] if material else "")
 
             lines.append(
                 {
                     "item_type": "material",
-                    "material_id": material["id"],
+                    "material_id": material["id"] if material else None,
                     "standard_task_id": None,
-                    "description": raw.get("description") or material["name"],
-                    "unit": material["unit"],
-                    "quantity": effective_quantity,
-                    "unit_price": unit_price,
-                    "line_total": _money(effective_quantity * unit_price),
+                    "description": material_name or raw.get("description") or material["name"],
+                    "unit": unit,
+                    "quantity": _quantity(quantity),
+                    # Nothing is charged for it, so no price is copied onto it.
+                    "unit_price": Decimal("0"),
+                    "line_total": Decimal("0"),
                     "sort_order": index,
-                    "source_code": material["code"],
-                    "waste_percent": waste_percent,
+                    "source_code": material["code"] if material else None,
+                    "is_quoted": False,
                 }
             )
             continue
@@ -141,18 +154,19 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
                     "line_total": _money(quantity * unit_price),
                     "sort_order": index,
                     "source_code": task["code"],
-                    "waste_percent": Decimal("0"),
+                    "is_quoted": True,
                 }
             )
             continue
 
-        # Free line: the caller supplies description, unit and price.
+        # Work package: the caller supplies the description and the price.
+        # It is quoted whole unless a unit says otherwise.
         description = (raw.get("description") or "").strip()
-        unit = (raw.get("unit") or "").strip()
-        if not description or not unit or raw.get("unit_price") is None:
+        unit = (raw.get("unit") or "").strip() or "global"
+        if not description or raw.get("unit_price") is None:
             raise ValueError(
-                f"item {index} needs 'material_code', 'task_code', or "
-                "'description' + 'unit' + 'unit_price'"
+                f"item {index} needs 'material', 'material_code', 'task_code', or "
+                "'description' + 'unit_price'"
             )
 
         quantity = _quantity(quantity)
@@ -172,7 +186,9 @@ def _build_estimate_lines(raw_items: Any) -> list[dict[str, Any]]:
                 "line_total": _money(quantity * unit_price),
                 "sort_order": index,
                 "source_code": None,
-                "waste_percent": Decimal("0"),
+                "detail": (raw.get("detail") or "").strip() or None,
+                "note": (raw.get("note") or "").strip() or None,
+                "is_quoted": True,
             }
         )
 
@@ -194,6 +210,17 @@ def _summarize(lines: list[dict[str, Any]], tax_rate: Decimal) -> dict[str, Any]
 
 def _line_for_output(line: dict[str, Any]) -> dict[str, Any]:
     """Present a computed line as plain JSON types."""
+    if not line["is_quoted"]:
+        # No price to show: the line is only there to tell the customer.
+        return {
+            "item_type": line["item_type"],
+            "listed_only": True,
+            "code": line["source_code"],
+            "description": line["description"],
+            "unit": line["unit"],
+            "quantity": float(line["quantity"]),
+        }
+
     return {
         "item_type": line["item_type"],
         "code": line["source_code"],
@@ -216,6 +243,9 @@ def _line_for_database(line: dict[str, Any]) -> dict[str, Any]:
         "quantity": float(line["quantity"]),
         "unit_price": float(line["unit_price"]),
         "sort_order": line["sort_order"],
+        "detail": line.get("detail"),
+        "note": line.get("note"),
+        "is_quoted": line["is_quoted"],
     }
 
 
@@ -243,7 +273,6 @@ def list_materials_tool(args: dict[str, Any], **_: Any) -> str:
                     "name": material["name"],
                     "category": material["category"],
                     "unit": material["unit"],
-                    "unit_price": float(material["unit_price"]),
                 }
                 for material in materials
             ],
@@ -273,7 +302,6 @@ def get_material_tool(args: dict[str, Any], **_: Any) -> str:
             "description": material["description"],
             "category": material["category"],
             "unit": material["unit"],
-            "unit_price": float(material["unit_price"]),
             "is_active": material["is_active"],
             "currency": settings.default_currency,
         }
@@ -475,6 +503,7 @@ def get_budget_tool(args: dict[str, Any], **_: Any) -> str:
                     "quantity": float(item["quantity"]),
                     "unit_price": float(item["unit_price"]),
                     "line_total": float(item["line_total"]),
+                    "listed_only": item.get("is_quoted") is False,
                 }
                 for item in budget.get("items", [])
             ],
@@ -488,16 +517,25 @@ def get_budget_tool(args: dict[str, Any], **_: Any) -> str:
 _ESTIMATE_ITEMS_SCHEMA = {
     "type": "array",
     "description": (
-        "Budget lines. Each line carries a quantity plus either a material_code, "
-        "a task_code, or a free description with unit and unit_price."
+        "Budget lines. Each line is one of: a material the customer buys "
+        "(material or material_code, listed with no price and never added to the "
+        "total), a labour task (task_code + quantity), or a work package "
+        "(description + unit_price, quantity 1, priced whole)."
     ),
     "minItems": 1,
     "items": {
         "type": "object",
         "properties": {
+            "material": {
+                "type": "string",
+                "description": (
+                    "Name of a material the customer buys, e.g. 'Arena fina'. It goes on the "
+                    "materials list with no price"
+                ),
+            },
             "material_code": {
                 "type": "string",
-                "description": "Catalog code of a material, e.g. 'MAT-CEM-001'",
+                "description": "Catalog code of a material to list, e.g. 'MAT-CEM-001'. Listed with no price",
             },
             "task_code": {
                 "type": "string",
@@ -507,20 +545,30 @@ _ESTIMATE_ITEMS_SCHEMA = {
                 "type": "string",
                 "description": "Line text. Required for free lines, optional otherwise",
             },
-            "unit": {"type": "string", "description": "Unit of measure. Required for free lines"},
+            "detail": {
+                "type": "string",
+                "description": "What a work package includes, one bullet per line",
+            },
+            "note": {
+                "type": "string",
+                "description": "Condition printed next to a work package's price",
+            },
+            "unit": {
+                "type": "string",
+                "description": "Unit of measure. A work package defaults to 'global'",
+            },
             "unit_price": {
                 "type": "number",
                 "minimum": 0,
-                "description": "Price per unit. Required for free lines only",
+                "description": "Price of a work package. Never set for a material",
             },
-            "quantity": {"type": "number", "exclusiveMinimum": 0},
-            "waste_percent": {
+            "quantity": {
                 "type": "number",
-                "minimum": 0,
-                "description": "Extra percentage added to the quantity of a material, e.g. 10 for 10%",
+                "exclusiveMinimum": 0,
+                "description": "Required for labour and work packages; optional for a material",
             },
         },
-        "required": ["quantity"],
+        "required": [],
     },
 }
 
@@ -528,8 +576,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "list_materials",
         "description": (
-            "Search the construction materials catalog and return the current unit prices. "
-            "Use it before pricing anything, to find the right material codes."
+            "Search the materials catalog for names and units, to spell a material the "
+            "way it is usually listed. It carries no prices: materials are never charged."
         ),
         "parameters": {
             "type": "object",
@@ -557,7 +605,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "name": "list_standard_tasks",
         "description": (
             "Search the standard labor tasks catalog and return their unit prices. "
-            "Use it to price labor alongside materials."
+            "Use it to price labour charged by quantity."
         ),
         "parameters": {
             "type": "object",
@@ -572,7 +620,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "calculate_estimate",
         "description": (
-            "Price a list of lines using current catalog prices and return subtotal, tax and total. "
+            "Price a list of lines and return subtotal, tax and total. Materials are listed "
+            "and add nothing. "
             "Nothing is stored — use it to show the customer a figure before committing to a budget."
         ),
         "parameters": {
