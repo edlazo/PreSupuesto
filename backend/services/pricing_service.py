@@ -60,8 +60,12 @@ def apply_site_factors(budget: dict[str, Any]) -> dict[str, Any]:
     Lines the customer buys are left alone: they charge nothing to raise.
     """
     factors = budget.get("site_factors") or []
+    items = budget.get("items") or []
 
-    if not factors:
+    # With no conditions there is nothing to add, and with no lines in hand
+    # there is nothing to work out: the stored totals are left as they are
+    # rather than being recomputed from an empty list.
+    if not factors or not items:
         return budget
 
     labor_multiplier, materials_multiplier = multipliers(factors)
@@ -71,7 +75,7 @@ def apply_site_factors(budget: dict[str, Any]) -> dict[str, Any]:
 
     charged: list[dict[str, Any]] = []
 
-    for item in budget.get("items") or []:
+    for item in items:
         if item.get("is_quoted", True) is False:
             charged.append(item)
             continue
@@ -95,7 +99,11 @@ def apply_site_factors(budget: dict[str, Any]) -> dict[str, Any]:
         line["line_total"] = _money(Decimal(str(line["unit_price"])) * quantity)
         charged.append(line)
 
-    subtotal = sum(_to_decimal(line.get("line_total")) for line in charged)
+    # `start` keeps this a Decimal for a budget with conditions but no lines,
+    # where the plain sum would be the integer zero.
+    subtotal = sum(
+        (_to_decimal(line.get("line_total")) for line in charged), Decimal("0")
+    )
     tax_rate = _to_decimal(budget.get("tax_rate"))
     tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(
         CENTS, rounding=ROUND_HALF_UP
