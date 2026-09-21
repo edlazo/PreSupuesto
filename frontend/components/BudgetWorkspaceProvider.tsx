@@ -34,6 +34,8 @@ interface BudgetWorkspaceValue {
   removeItem: (itemId: string) => Promise<void>;
   /** Correct how much of a line the job needs. */
   updateItemQuantity: (itemId: string, quantity: number) => Promise<void>;
+  /** Correct what a line charges, at its base price. */
+  updateItemPrice: (itemId: string, unitPrice: number) => Promise<void>;
   /** Move a line between charged and only listed. */
   setItemQuoted: (itemId: string, isQuoted: boolean) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
@@ -165,6 +167,26 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const updateItemPrice = useCallback(
+    async (itemId: string, unitPrice: number) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudgetItem(budget.id, itemId, { unit_price: unitPrice }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar el precio.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const setItemQuoted = useCallback(
     async (itemId: string, isQuoted: boolean) => {
       if (!budget) return;
@@ -251,6 +273,7 @@ export default function BudgetWorkspaceProvider({
       addItem,
       removeItem,
       updateItemQuantity,
+      updateItemPrice,
       setItemQuoted,
       assignClient,
       setSiteFactors,
@@ -266,6 +289,7 @@ export default function BudgetWorkspaceProvider({
       addItem,
       removeItem,
       updateItemQuantity,
+      updateItemPrice,
       setItemQuoted,
       assignClient,
       setSiteFactors,

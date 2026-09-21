@@ -572,8 +572,9 @@ def update_budget_item(
     """Change a line and return the budget with its new totals.
 
     The quantity is taken as final: whatever waste was added when the line was
-    created is already part of the number the budget shows. Turning `is_quoted`
-    off leaves the line listed without a price, out of the total.
+    created is already part of the number the budget shows. `unit_price` is the
+    base price, before the site conditions are applied on the way out. Turning
+    `is_quoted` off leaves the line listed without a price, out of the total.
     """
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
 

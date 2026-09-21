@@ -60,6 +60,24 @@ function roundToCents(amount: number): number {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * What labour and materials are multiplied by, from the conditions applied.
+ *
+ * Mirrors `services/pricing_service.multipliers`: the percentages add up
+ * rather than compound, and a condition that is only stated changes nothing.
+ */
+function multipliers(budget: Budget): { labor: number; materials: number } {
+  let labor = 0;
+  let materials = 0;
+
+  for (const factor of budget.site_factors ?? []) {
+    if (factor.applies_to === "materials") materials += factor.percent;
+    if (factor.applies_to === "labor") labor += factor.percent;
+  }
+
+  return { labor: 1 + labor / 100, materials: 1 + materials / 100 };
+}
+
 /** True when the line is a job quoted whole, with no quantity to speak of. */
 function isWholeJob(item: BudgetItem): boolean {
   return item.unit === "global" && item.quantity === 1;
@@ -82,6 +100,7 @@ export default function BudgetPreview() {
     error,
     removeItem,
     updateItemQuantity,
+    updateItemPrice,
     setItemQuoted,
     assignClient,
     setSiteFactors,
@@ -115,6 +134,23 @@ export default function BudgetPreview() {
   /** Correct how much of a line the job needs. */
   function handleQuantityChange(itemId: string, quantity: number) {
     void updateItemQuantity(itemId, quantity);
+  }
+
+  /**
+   * Correct what a line charges.
+   *
+   * The screen shows the price with the site conditions already in it, which
+   * is the number being typed over, so it is taken back to its base before
+   * being stored — what is typed is what the budget will read.
+   */
+  function handlePriceChange(itemId: string, chargedPrice: number) {
+    const item = budget?.items.find((line) => line.id === itemId);
+    if (!item) return;
+
+    const { labor, materials } = multipliers(budget as Budget);
+    const multiplier = item.item_type === "material" ? materials : labor;
+
+    void updateItemPrice(itemId, roundToCents(chargedPrice / multiplier));
   }
 
   /** Move a line between what is charged and what the customer buys. */
@@ -282,6 +318,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
             />
@@ -291,6 +328,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
             />
@@ -300,6 +338,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
             />
@@ -310,6 +349,7 @@ export default function BudgetPreview() {
               currency={currency}
               onRemove={handleRemove}
               onQuantityChange={handleQuantityChange}
+              onPriceChange={handlePriceChange}
               onToggleQuoted={handleToggleQuoted}
               isSaving={isSaving}
               isSupplied
@@ -375,6 +415,7 @@ function ItemGroup({
   currency,
   onRemove,
   onQuantityChange,
+  onPriceChange,
   onToggleQuoted,
   isSaving,
   isSupplied = false,
@@ -384,6 +425,7 @@ function ItemGroup({
   currency: string | undefined;
   onRemove: (itemId: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
+  onPriceChange: (itemId: string, unitPrice: number) => void;
   onToggleQuoted: (itemId: string, isQuoted: boolean) => void;
   isSaving: boolean;
   /** Listed for the customer to buy: quantities, no money. */
@@ -427,11 +469,20 @@ function ItemGroup({
                     isSaving={isSaving}
                     onSave={(quantity) => onQuantityChange(item.id, quantity)}
                   />
-                  <span>
-                    {isSupplied
-                      ? item.unit
-                      : `${item.unit} × ${formatCurrency(item.unit_price, currency)}`}
-                  </span>
+                  {isSupplied ? (
+                    <span>{item.unit}</span>
+                  ) : (
+                    <>
+                      <span>{item.unit} ×</span>
+                      <AmountCell
+                        amount={item.unit_price}
+                        currency={currency}
+                        isSaving={isSaving}
+                        label={`Precio unitario de ${item.description}`}
+                        onSave={(price) => onPriceChange(item.id, price)}
+                      />
+                    </>
+                  )}
                 </p>
               )}
 
@@ -442,6 +493,15 @@ function ItemGroup({
             <span className="flex shrink-0 items-center gap-2">
               {isSupplied ? (
                 <span className="whitespace-nowrap text-xs text-muted">lo pone el cliente</span>
+              ) : isWholeJob(item) ? (
+                <AmountCell
+                  amount={item.line_total}
+                  currency={currency}
+                  isSaving={isSaving}
+                  label={`Precio de ${item.description}`}
+                  className="text-sm font-medium"
+                  onSave={(price) => onPriceChange(item.id, price)}
+                />
               ) : (
                 <span className="whitespace-nowrap text-sm font-medium">
                   {formatCurrency(item.line_total, currency)}
@@ -548,6 +608,81 @@ function QuantityCell({
         }
       }}
       className="no-print w-20 rounded-md border border-primary bg-background px-1.5 py-0.5 text-xs outline-none"
+    />
+  );
+}
+
+/**
+ * An amount that turns into an input when clicked.
+ *
+ * What is shown already carries the site conditions, so what is typed is what
+ * the budget will read: the caller takes it back to its base price.
+ */
+function AmountCell({
+  amount,
+  currency,
+  isSaving,
+  label,
+  className = "",
+  onSave,
+}: {
+  amount: number;
+  currency: string | undefined;
+  isSaving: boolean;
+  label: string;
+  className?: string;
+  onSave: (amount: number) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  // Seeded when editing starts, so a price changed elsewhere is picked up
+  // without syncing props into state.
+  const [value, setValue] = useState("");
+
+  function commit() {
+    setIsEditing(false);
+    // Thousands are typed with dots, the way prices are written here.
+    const price = Number(value.replace(/\./g, "").replace(",", "."));
+
+    if (!Number.isFinite(price) || price < 0 || price === amount) {
+      return;
+    }
+
+    onSave(price);
+  }
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        disabled={isSaving}
+        onClick={() => {
+          setValue(String(amount));
+          setIsEditing(true);
+        }}
+        title="Tocá para cambiar el precio"
+        aria-label={label}
+        className={`-mx-1.5 -my-1 rounded-md px-1.5 py-1 tabular-nums underline decoration-dotted decoration-muted/60 underline-offset-2 transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-50 ${className}`}
+      >
+        {formatCurrency(amount, currency)}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      inputMode="numeric"
+      value={value}
+      aria-label={label}
+      onFocus={(event) => event.target.select()}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit();
+        if (event.key === "Escape") setIsEditing(false);
+      }}
+      className="no-print w-28 rounded-md border border-primary bg-background px-1.5 py-0.5 text-right text-xs outline-none"
     />
   );
 }

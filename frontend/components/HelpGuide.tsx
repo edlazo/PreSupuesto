@@ -224,9 +224,14 @@ export default function HelpGuide() {
                 Antes de agregar, abajo del formulario ves cuánto suma esa línea.
               </li>
               <li>
-                Para corregir una cantidad, tocá el número de la línea (el que está
-                subrayado con puntitos), escribí el nuevo y apretá <Key>Enter</Key>. Con{" "}
-                <Key>Esc</Key> queda como estaba.
+                Para corregir una <strong>cantidad</strong> o un <strong>precio</strong>,
+                tocá el número de la línea (los que están subrayados con puntitos), escribí
+                el nuevo y apretá <Key>Enter</Key>. Con <Key>Esc</Key> queda como estaba.
+              </li>
+              <li>
+                El precio que escribís es el que va a leer el cliente, ya con las condiciones
+                de obra adentro: si una partida dice <Code>2.240.000</Code> y querés que diga{" "}
+                <Code>2.250.000</Code>, escribí ese número y listo.
               </li>
               <li>
                 Para sacar algo, tocá la <strong>✕</strong> a la derecha de la línea.
@@ -248,6 +253,13 @@ export default function HelpGuide() {
               cantidad y la unidad: <em>3 m3 de arena fina</em>. Pero si es algo que no se
               mide —<em>madera</em>, <em>cerámica, adhesivo y pastina</em>— dejá los dos
               casilleros vacíos y va solo el nombre.
+            </p>
+            <p className="mt-2">
+              Si tenés la lista escrita, tocá <Button>Pegar varios</Button> y pegala entera,
+              un material por renglón: <Code>1 m3 piedra partida</Code>,{" "}
+              <Code>10 bolsas plasticor</Code>, <Code>1.000 ladrillos comunes</Code>,{" "}
+              <Code>madera</Code>. Entiende la cantidad y la unidad cuando están, te muestra
+              cómo lo leyó y los agrega todos juntos.
             </p>
             <p className="mt-2">
               <strong>Nunca se le pone precio.</strong> Es la lista que le dejás al cliente

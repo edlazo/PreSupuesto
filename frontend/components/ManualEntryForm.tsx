@@ -3,7 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBudgetWorkspace } from "@/components/BudgetWorkspaceProvider";
 import { ApiError, listMaterials, listStandardTasks } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatQuantity } from "@/lib/format";
+import { parseMaterialList } from "@/lib/materialList";
 import type { Material, StandardTask } from "@/lib/types";
 
 /** One pickable catalog entry, from either catalog. */
@@ -94,6 +95,9 @@ export default function ManualEntryForm() {
   const [listQuantity, setListQuantity] = useState("");
   const [listUnit, setListUnit] = useState("");
   const [isNameListOpen, setIsNameListOpen] = useState(false);
+  // A whole list at once, the way it is written on paper.
+  const [isPasting, setIsPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
 
   // Work package side.
   const [title, setTitle] = useState("");
@@ -165,6 +169,8 @@ export default function ManualEntryForm() {
       .slice(0, MAX_RESULTS);
   }, [entries, listName]);
 
+  const pastedItems = useMemo(() => parseMaterialList(pasted), [pasted]);
+
   const parsedQuantity = Number(quantity.replace(",", "."));
   const parsedPrice = Number(price.replace(/\./g, "").replace(",", "."));
   const hasValidQuantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0;
@@ -175,7 +181,9 @@ export default function ManualEntryForm() {
     (mode === "package"
       ? title.trim() !== "" && hasValidPrice
       : mode === "list"
-        ? listName.trim() !== ""
+        ? isPasting
+          ? pastedItems.length > 0
+          : listName.trim() !== ""
         : selected !== null && hasValidQuantity);
 
   // The list carries no money, so it never shows a subtotal.
@@ -219,6 +227,26 @@ export default function ManualEntryForm() {
       setNote("");
       setPrice("");
       titleRef.current?.focus();
+      return;
+    }
+
+    if (mode === "list" && isPasting) {
+      // One line at a time: each answer carries the whole budget back.
+      for (const item of pastedItems) {
+        await addItem({
+          description: item.name,
+          unit: item.unit,
+          is_quoted: false,
+          quantity: item.quantity ?? 1,
+        });
+      }
+
+      setNotice(
+        pastedItems.length === 1
+          ? "Agregado 1 material a la lista"
+          : `Agregados ${pastedItems.length} materiales a la lista`,
+      );
+      setPasted("");
       return;
     }
 
@@ -376,6 +404,64 @@ export default function ManualEntryForm() {
               </button>
             </div>
           </>
+        ) : mode === "list" && isPasting ? (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label htmlFor={`${listId}-paste`} className="text-xs font-medium text-muted">
+                Pegá la lista, un material por renglón
+              </label>
+              <textarea
+                id={`${listId}-paste`}
+                rows={5}
+                value={pasted}
+                placeholder={
+                  "1 m3 piedra partida\n10 bolsas plasticor\n1.000 ladrillos comunes\nmadera"
+                }
+                onChange={(event) => {
+                  setPasted(event.target.value);
+                  setNotice(null);
+                }}
+                className={`mt-1 resize-y font-mono ${FIELD_CLASS}`}
+              />
+            </div>
+
+            {pastedItems.length > 0 ? (
+              <ul className="max-h-40 overflow-y-auto rounded-lg border border-border">
+                {pastedItems.map((item, index) => (
+                  <li
+                    key={`${item.name}-${index}`}
+                    className="flex items-center justify-between gap-3 border-b border-border px-3 py-1.5 text-xs last:border-0"
+                  >
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    <span className="shrink-0 tabular-nums text-muted">
+                      {item.quantity === null
+                        ? "sin cantidad"
+                        : `${formatQuantity(item.quantity)} ${item.unit}`.trim()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPasting(false)}
+                className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-foreground"
+              >
+                Cargar de a uno
+              </button>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving
+                  ? "Agregando…"
+                  : `Agregar ${pastedItems.length || ""} a la lista`.replace("  ", " ")}
+              </button>
+            </div>
+          </div>
         ) : mode === "list" ? (
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             {/* The name, with the catalog only as a spelling hand. */}
@@ -458,13 +544,26 @@ export default function ManualEntryForm() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving ? "Agregando…" : "Agregar a la lista"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving ? "Agregando…" : "Agregar a la lista"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPasting(true);
+                  setNotice(null);
+                }}
+                title="Pegar varios materiales de una vez"
+                className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-primary hover:text-primary"
+              >
+                Pegar varios
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">

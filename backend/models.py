@@ -286,6 +286,11 @@ class BudgetItemUpdate(BaseModel):
     quantity: Optional[float] = Field(
         default=None, gt=0, description="How much of it the job needs"
     )
+    unit_price: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Base price of one unit, before any site condition is applied",
+    )
     is_quoted: Optional[bool] = Field(
         default=None,
         description="False lists the line without a price and keeps it out of the total",

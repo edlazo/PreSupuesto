@@ -164,6 +164,8 @@ export interface BudgetItemCreate {
 export interface BudgetItemUpdate {
   /** The final quantity, waste included: what the budget shows. */
   quantity?: number;
+  /** Base price of one unit, before the site conditions are applied. */
+  unit_price?: number;
   /** False lists the line without a price and keeps it out of the total. */
   is_quoted?: boolean;
 }
