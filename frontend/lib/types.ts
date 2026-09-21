@@ -17,28 +17,6 @@ export interface Material {
   updated_at: string;
 }
 
-/** Payload accepted by POST /api/materials. */
-export interface MaterialCreate {
-  /** Left empty, the backend generates one from the category (MAT-ALB-004). */
-  code: string;
-  name: string;
-  description?: string | null;
-  category: string;
-  unit: string;
-  unit_price: number;
-  is_active: boolean;
-}
-
-/** Payload accepted by PATCH /api/materials/{id}. Every field is optional. */
-export type MaterialUpdate = Partial<MaterialCreate>;
-
-/** What POST /api/materials/bulk-update-price reports back. */
-export interface BulkPriceUpdateResult {
-  updated: number;
-  percentage: number;
-  materials: Material[];
-}
-
 /** A labor task from GET /api/standard-tasks. */
 export interface StandardTask {
   id: string;

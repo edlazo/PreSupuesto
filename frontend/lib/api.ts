@@ -7,14 +7,11 @@ import type {
   BudgetItemCreate,
   BudgetItemUpdate,
   BudgetUpdate,
-  BulkPriceUpdateResult,
   ChatResponse,
   Client,
   ClientCreate,
   HealthResponse,
   Material,
-  MaterialCreate,
-  MaterialUpdate,
   PricingFactor,
   PricingFactorUpdate,
   StandardTask,
@@ -105,49 +102,6 @@ export function listMaterials(query: MaterialQuery = {}): Promise<Material[]> {
 
   const queryString = params.toString();
   return request<Material[]>(`/api/materials${queryString ? `?${queryString}` : ""}`);
-}
-
-export function createMaterial(payload: MaterialCreate): Promise<Material> {
-  return request<Material>("/api/materials", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateMaterial(id: string, payload: MaterialUpdate): Promise<Material> {
-  return request<Material>(`/api/materials/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteMaterial(id: string): Promise<{ id: string; deleted: boolean }> {
-  return request<{ id: string; deleted: boolean }>(`/api/materials/${id}`, {
-    method: "DELETE",
-  });
-}
-
-export interface BulkPriceUpdate {
-  /** Percentage to apply: 12.5 raises prices by 12.5%, -5 lowers them. */
-  percentage: number;
-  /** Restrict the change to one category. */
-  category?: string;
-  /** Skip materials flagged as inactive. */
-  onlyActive?: boolean;
-}
-
-/** Raise or lower the unit price of several materials at once. */
-export function bulkUpdateMaterialPrices(
-  update: BulkPriceUpdate,
-): Promise<BulkPriceUpdateResult> {
-  return request<BulkPriceUpdateResult>("/api/materials/bulk-update-price", {
-    method: "POST",
-    body: JSON.stringify({
-      percentage: update.percentage,
-      category: update.category ?? null,
-      only_active: update.onlyActive ?? true,
-    }),
-  });
 }
 
 // --- Standard tasks ---------------------------------------------------------

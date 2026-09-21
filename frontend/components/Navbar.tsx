@@ -9,7 +9,6 @@ import { formatCurrency } from "@/lib/format";
 const NAV_LINKS = [
   { href: "/", label: "Escritorio", short: "Inicio" },
   { href: "/presupuestos", label: "Presupuestos", short: "Presup." },
-  { href: "/materials", label: "Materiales", short: "Materiales" },
   { href: "/ayuda", label: "Ayuda", short: "Ayuda" },
 ] as const;
 

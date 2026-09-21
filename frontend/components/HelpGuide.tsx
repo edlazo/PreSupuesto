@@ -9,14 +9,9 @@ interface Section {
 
 const SECTIONS: Section[] = [
   {
-    id: "materiales",
-    title: "Gestión de materiales",
-    summary: "Cargar materiales, corregir precios y actualizarlos por inflación.",
-  },
-  {
     id: "presupuesto",
     title: "Armar el presupuesto a mano",
-    summary: "Elegir del catálogo, poner la cantidad y sumar la línea.",
+    summary: "Partidas con su precio, mano de obra y la lista de materiales.",
   },
   {
     id: "chat",
@@ -53,9 +48,8 @@ export default function HelpGuide() {
         <p className="text-sm font-medium text-primary">Ayuda</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Cómo usar PreSupuesto</h1>
         <p className="mt-3 text-base text-muted">
-          Una guía corta para armar presupuestos de obra sin vueltas. Si es la primera vez
-          que entrás, empezá por los materiales: todo lo demás sale de ahí. Los
-          presupuestos los armás a mano, y si querés te ayuda el asistente.
+          Una guía corta para armar presupuestos de obra sin vueltas. Los presupuestos los
+          armás a mano, y si querés te ayuda el asistente.
         </p>
       </header>
 
@@ -80,92 +74,7 @@ export default function HelpGuide() {
 
       <div className="space-y-12">
         {/* 1 ----------------------------------------------------------------- */}
-        <GuideSection id="materiales" number={1} title="Gestión de materiales">
-          <p>
-            En <PageLink href="/materials">Materiales</PageLink> está tu catálogo: los
-            nombres y las unidades con los que armás la lista de un presupuesto, más los
-            precios que llevás de referencia.
-          </p>
-          <p>
-            <strong>Esos precios no entran al presupuesto.</strong> Lo que salen los
-            materiales lo manejás vos con el corralón; al cliente se le informa qué se va a
-            comprar, no cuánto sale.
-          </p>
-
-          <Steps title="Para cargar un material nuevo">
-            <li>
-              Entrá a <strong>Materiales</strong> y tocá <Button>Agregar material</Button>.
-            </li>
-            <li>
-              Completá el <strong>nombre</strong>, la <strong>categoría</strong>{" "}
-              (Albañilería, Pintura, Materiales de agarre…), la <strong>unidad</strong>{" "}
-              (bolsa, m2, u, balde) y el <strong>precio unitario</strong>.
-            </li>
-            <li>
-              El <strong>código</strong> podés dejarlo vacío: se genera solo según la
-              categoría, como <Code>MAT-ALB-004</Code> para Albañilería. Si preferís
-              usar el tuyo, escribilo y se respeta.
-            </li>
-            <li>
-              Tocá <Button>Crear material</Button>. Ya queda disponible para los
-              presupuestos nuevos.
-            </li>
-          </Steps>
-
-          <Steps title="Para corregir un precio suelto">
-            <li>
-              Buscá el material por nombre con el buscador, o filtrá por categoría.
-            </li>
-            <li>
-              Tocá el precio en la columna <strong>Precio unit.</strong>: se convierte en
-              un casillero editable.
-            </li>
-            <li>
-              Escribí el precio nuevo y apretá <Key>Enter</Key>. Si te arrepentís, apretá{" "}
-              <Key>Esc</Key> y queda como estaba.
-            </li>
-          </Steps>
-
-          <Steps title="Para actualizar todos los precios por inflación">
-            <li>
-              Si querés tocar una sola categoría, elegila primero en{" "}
-              <strong>Todas las categorías</strong>. Si no elegís ninguna, se actualiza
-              todo el catálogo.
-            </li>
-            <li>
-              En <strong>Actualización rápida de precios</strong>, escribí el porcentaje.
-              Por ejemplo <Code>15</Code> para aumentar un 15%.
-            </li>
-            <li>
-              Tocá <Button>Aplicar</Button> y confirmá. El cartel te dice cuántos precios
-              cambiaron.
-            </li>
-          </Steps>
-
-          <Callout title="Tené en cuenta">
-            <ul className="list-disc space-y-1 pl-5">
-              <li>
-                Para <strong>bajar</strong> precios, usá un número negativo:{" "}
-                <Code>-10</Code> los baja un 10%.
-              </li>
-              <li>
-                El aumento se aplica solo a los materiales <strong>activos</strong>.
-              </li>
-              <li>
-                Los presupuestos ya guardados <strong>no cambian</strong>: cada uno se
-                queda con los precios del día que lo armaste.
-              </li>
-              <li>
-                Un material que ya usó un presupuesto no se puede eliminar. Editalo y
-                destildá <strong>Activo</strong>: deja de aparecer en los nuevos, pero los
-                viejos siguen enteros.
-              </li>
-            </ul>
-          </Callout>
-        </GuideSection>
-
-        {/* 2 ----------------------------------------------------------------- */}
-        <GuideSection id="presupuesto" number={2} title="Armar el presupuesto a mano">
+        <GuideSection id="presupuesto" number={1} title="Armar el presupuesto a mano">
           <p>
             Esta es la forma principal de trabajar. En el{" "}
             <PageLink href="/">Escritorio</PageLink>, arriba de todo está el formulario
@@ -317,13 +226,13 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 3 ----------------------------------------------------------------- */}
-        <GuideSection id="chat" number={3} title="Usar el asistente (opcional)">
+        {/* 2 ----------------------------------------------------------------- */}
+        <GuideSection id="chat" number={2} title="Usar el asistente (opcional)">
           <p>
             Si te resulta más cómodo dictarlo que cargarlo, abrí{" "}
             <Button>🤖 Asistente IA</Button> en el Escritorio (en el celular es la
             solapa <strong>🤖 Asistente</strong>). Escribile como le hablarías a alguien
-            del oficio: busca los precios en tu catálogo y hace las cuentas. Todo lo que
+            del oficio: busca los precios de mano de obra en tu catálogo y hace las cuentas. Todo lo que
             cargue va al mismo presupuesto que armás a mano.
           </p>
 
@@ -371,10 +280,6 @@ export default function HelpGuide() {
                 bocas, largo de la pared.
               </li>
               <li>
-                Si el material no está en el catálogo, no lo va a inventar. Cargalo primero
-                en <PageLink href="/materials">Materiales</PageLink>.
-              </li>
-              <li>
                 Para guardar un presupuesto necesita un cliente. Si es nuevo, pedile que lo
                 cree con nombre y teléfono.
               </li>
@@ -386,8 +291,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 4 ----------------------------------------------------------------- */}
-        <GuideSection id="moneda" number={4} title="Pesos, dólares y dólar blue">
+        {/* 3 ----------------------------------------------------------------- */}
+        <GuideSection id="moneda" number={3} title="Pesos, dólares y dólar blue">
           <p>
             Arriba a la derecha, al lado del menú, está la cotización del{" "}
             <strong>dólar blue</strong> con la compra y la venta del momento. El botón
@@ -434,8 +339,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 5 ----------------------------------------------------------------- */}
-        <GuideSection id="pdf" number={5} title="Exportar y mandar el PDF">
+        {/* 4 ----------------------------------------------------------------- */}
+        <GuideSection id="pdf" number={4} title="Exportar y mandar el PDF">
           <p>
             El PDF es el documento que le mandás al cliente: sale con tus datos, los del
             cliente, el detalle de materiales y mano de obra, y el total.
@@ -484,8 +389,8 @@ export default function HelpGuide() {
           </Callout>
         </GuideSection>
 
-        {/* 6 ----------------------------------------------------------------- */}
-        <GuideSection id="problemas" number={6} title="Si algo no funciona">
+        {/* 5 ----------------------------------------------------------------- */}
+        <GuideSection id="problemas" number={5} title="Si algo no funciona">
           <dl className="space-y-4">
             <Problem question="El asistente no contesta o tira error">
               Probá de nuevo en un rato. Si sigue igual, avisale a quien te instaló el
@@ -607,7 +512,7 @@ function PageLink({
   href,
   children,
 }: {
-  href: "/" | "/materials" | "/presupuestos";
+  href: "/" | "/presupuestos";
   children: React.ReactNode;
 }) {
   return (
