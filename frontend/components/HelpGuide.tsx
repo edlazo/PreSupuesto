@@ -259,18 +259,20 @@ export default function HelpGuide() {
           <Callout title="Lo que cambia el precio">
             <p>
               Abajo del presupuesto está <strong>Condiciones de obra</strong>. Marcá lo que
-              corresponda —departamento, sin lugar para estacionar, horarios impuestos— y te
-              dice cuánto debería salir con esos recargos, redondeado a los <Code>50.000</Code>.
-              Los porcentajes se suman entre sí, y los cambiás tocándolos.
+              corresponda —departamento, sin lugar para estacionar, horarios impuestos— y{" "}
+              <strong>los precios suben solos</strong>: una partida de <Code>1.600.000</Code>{" "}
+              con departamento pasa a <Code>2.240.000</Code>. Los porcentajes se suman entre
+              sí, y los cambiás tocándolos.
             </p>
             <p className="mt-2">
               Si los materiales los comprás vos, elegí <strong>Provincia</strong> o{" "}
-              <strong>Capital</strong>: son alternativas, nunca las dos, y se cobran sobre el
-              valor de los materiales en lugar de la mano de obra.
+              <strong>Capital</strong>: son alternativas, nunca las dos, y suben el precio de
+              los materiales en lugar del de la mano de obra.
             </p>
             <p className="mt-2">
-              <strong>Es solo para vos.</strong> El recargo no se imprime: el cliente ve el
-              precio que vos escribís en cada partida, y nada más.
+              <strong>El cliente no ve ningún porcentaje.</strong> El recargo queda repartido
+              adentro de los precios, así que las líneas siempre suman el total. Si destildás
+              una condición, todo vuelve a como estaba: lo que se guarda es el precio base.
             </p>
           </Callout>
 

@@ -31,6 +31,7 @@ from reportlab.platypus import (
 )
 
 from config import settings
+from services import pricing_service
 
 logger = logging.getLogger(__name__)
 
@@ -686,6 +687,10 @@ def build_budget_pdf(
     """
     if not isinstance(budget, dict) or not budget.get("id"):
         raise PdfServiceError("A budget with an id is required to build a PDF")
+
+    # The conditions chosen for the job are folded into the prices before
+    # anything else, so the document prints what is actually charged.
+    budget = pricing_service.apply_site_factors(budget)
 
     stored_currency = str(budget.get("currency") or settings.default_currency).upper()
     currency = (currency or stored_currency).upper()

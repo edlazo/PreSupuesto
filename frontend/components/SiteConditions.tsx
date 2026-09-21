@@ -5,14 +5,6 @@ import { ApiError, listPricingFactors, updatePricingFactor } from "@/lib/api";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import type { AppliedFactor, Budget, PricingFactor } from "@/lib/types";
 
-/** Prices are quoted in round numbers, and this is the step they land on. */
-const ROUNDING_STEP = 50000;
-
-/** Round to the nearest step, ties up: 2.375.000 becomes 2.400.000. */
-function roundToStep(amount: number): number {
-  return Math.round(amount / ROUNDING_STEP) * ROUNDING_STEP;
-}
-
 interface SiteConditionsProps {
   budget: Budget;
   isSaving: boolean;
@@ -23,9 +15,9 @@ interface SiteConditionsProps {
  * What the job costs given where it happens.
  *
  * The trade prices the same work differently in a flat, with nowhere to park,
- * or on hours the client imposes. This works out what those conditions add,
- * but it never writes the number: the price presented is typed by hand, and
- * the customer's copy shows no surcharge.
+ * or on hours the client imposes. Ticking a condition raises the prices the
+ * budget charges: the backend keeps the base and spreads the surcharge across
+ * the lines, so the customer reads a price and never a percentage.
  */
 export default function SiteConditions({ budget, isSaving, onChange }: SiteConditionsProps) {
   const [factors, setFactors] = useState<PricingFactor[]>([]);
@@ -54,11 +46,11 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
   const applied: AppliedFactor[] = budget.site_factors ?? [];
   const appliedCodes = new Set(applied.map((factor) => factor.code));
 
-  // What the conditions are computed on: the work, and the materials.
-  const labourBase = budget.items
+  // The budget already arrives charged, so these are the raised amounts.
+  const labourCharged = budget.items
     .filter((item) => item.item_type !== "material")
     .reduce((total, item) => total + item.line_total, 0);
-  const materialsBase = budget.items
+  const materialsCharged = budget.items
     .filter((item) => item.item_type === "material")
     .reduce((total, item) => total + item.line_total, 0);
 
@@ -71,8 +63,9 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
     .filter((factor) => factor.applies_to === "materials")
     .reduce((total, factor) => total + factor.percent, 0);
 
-  const suggested =
-    labourBase * (1 + labourPercent / 100) + materialsBase * (1 + materialsPercent / 100);
+  // What the conditions added, read back out of the charged amounts.
+  const labourAdded = labourCharged - labourCharged / (1 + labourPercent / 100);
+  const materialsAdded = materialsCharged - materialsCharged / (1 + materialsPercent / 100);
   const hasSurcharge = labourPercent !== 0 || materialsPercent !== 0;
 
   // The closed panel says what is applied, and to what.
@@ -184,28 +177,25 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
 
           {hasSurcharge ? (
             <dl className="space-y-1 border-t border-border pt-2 text-xs">
-              {labourBase > 0 ? (
-                <Row
-                  label={`Mano de obra${labourPercent ? ` +${formatQuantity(labourPercent)}%` : ""}`}
-                  value={formatCurrency(labourBase * (1 + labourPercent / 100))}
-                />
-              ) : null}
-              {materialsBase > 0 ? (
-                <Row
-                  label={`Materiales${
-                    materialsPercent ? ` +${formatQuantity(materialsPercent)}%` : ""
-                  }`}
-                  value={formatCurrency(materialsBase * (1 + materialsPercent / 100))}
-                />
-              ) : null}
-              <Row label="Con las condiciones" value={formatCurrency(suggested)} />
-              <div className="flex items-center justify-between pt-1 font-semibold text-foreground">
-                <dt>Redondeado</dt>
-                <dd className="tabular-nums">{formatCurrency(roundToStep(suggested))}</dd>
-              </div>
-              <p className="pt-1 text-[0.65rem] text-muted">
-                Es una sugerencia: el precio que cobrás lo escribís vos en cada partida.
+              <p className="pb-1 text-[0.65rem] text-muted">
+                Los precios del presupuesto ya salen con esto adentro.
               </p>
+              {labourPercent !== 0 ? (
+                <Row
+                  label={`Mano de obra +${formatQuantity(labourPercent)}%`}
+                  value={`+ ${formatCurrency(labourAdded)}`}
+                />
+              ) : null}
+              {materialsPercent !== 0 && materialsCharged > 0 ? (
+                <Row
+                  label={`Materiales +${formatQuantity(materialsPercent)}%`}
+                  value={`+ ${formatCurrency(materialsAdded)}`}
+                />
+              ) : null}
+              <div className="flex items-center justify-between pt-1 font-semibold text-foreground">
+                <dt>Suman al presupuesto</dt>
+                <dd className="tabular-nums">{formatCurrency(labourAdded + materialsAdded)}</dd>
+              </div>
             </dl>
           ) : (
             <p className="text-xs text-muted">

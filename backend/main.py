@@ -51,7 +51,13 @@ from models import (
     MaterialUpdate,
     StandardTaskRead,
 )
-from services import agent_service, currency_service, pdf_service, supabase_service
+from services import (
+    agent_service,
+    currency_service,
+    pdf_service,
+    pricing_service,
+    supabase_service,
+)
 from services.agent_service import AgentError
 from services.currency_service import CurrencyServiceError
 from services.pdf_service import PdfServiceError
@@ -180,6 +186,16 @@ def _build_budget_item(payload: BudgetItemCreate) -> dict[str, Any]:
         "quantity": float(quantity.quantize(QUANTITY_STEP, rounding=ROUND_HALF_UP)),
         "unit_price": 0.0 if listed_only else float(payload.unit_price),
     }
+
+
+def _as_charged(budget: dict[str, Any]) -> dict[str, Any]:
+    """The budget as it is charged, with the site conditions spread into it.
+
+    Lines are stored at their base price; the surcharge lives on the budget as
+    a list of conditions and is folded in here, so the customer never reads a
+    percentage and the lines always add up to the total.
+    """
+    return pricing_service.apply_site_factors(budget)
 
 
 # ---------------------------------------------------------------------------
@@ -448,10 +464,24 @@ def list_budgets(
     """List budget headers, most recent first. Lines are not included."""
     try:
         rows = supabase_service.list_budgets(client_id=client_id, status=status_filter, limit=limit)
+        # The totals have to include the site conditions, which are computed
+        # from the lines, so they are read in one go and grouped here.
+        items = supabase_service.list_budget_items([str(row["id"]) for row in rows])
     except SupabaseServiceError as exc:
         raise _handle_supabase_error(exc) from exc
 
-    return [BudgetRead.model_validate(row) for row in rows]
+    by_budget: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        by_budget.setdefault(str(item.get("budget_id")), []).append(item)
+
+    budgets = []
+    for row in rows:
+        charged = _as_charged(dict(row, items=by_budget.get(str(row["id"]), [])))
+        # The listing stays a list of headers: the lines were only needed to
+        # work out what the budget charges.
+        budgets.append(BudgetRead.model_validate(dict(charged, items=[])))
+
+    return budgets
 
 
 @app.post(
@@ -498,7 +528,7 @@ def create_budget(payload: BudgetCreate) -> BudgetRead:
     except SupabaseServiceError as exc:
         raise _handle_supabase_error(exc) from exc
 
-    return BudgetRead.model_validate(budget)
+    return BudgetRead.model_validate(_as_charged(budget))
 
 
 @app.post(
@@ -528,7 +558,7 @@ def add_budget_item(budget_id: str, payload: BudgetItemCreate) -> BudgetRead:
     if budget is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
-    return BudgetRead.model_validate(budget)
+    return BudgetRead.model_validate(_as_charged(budget))
 
 
 @app.patch(
@@ -577,7 +607,7 @@ def update_budget_item(
     if budget is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
-    return BudgetRead.model_validate(budget)
+    return BudgetRead.model_validate(_as_charged(budget))
 
 
 @app.delete(
@@ -600,7 +630,7 @@ def delete_budget_item(budget_id: str, item_id: str) -> BudgetRead:
     if budget is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
-    return BudgetRead.model_validate(budget)
+    return BudgetRead.model_validate(_as_charged(budget))
 
 
 @app.get("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])
@@ -614,7 +644,7 @@ def get_budget(budget_id: str) -> BudgetRead:
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
-    return BudgetRead.model_validate(row)
+    return BudgetRead.model_validate(_as_charged(row))
 
 
 @app.patch("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])
@@ -695,7 +725,7 @@ def update_budget(budget_id: str, payload: BudgetUpdate) -> BudgetRead:
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
 
-    return BudgetRead.model_validate(row)
+    return BudgetRead.model_validate(_as_charged(row))
 
 
 @app.get(

@@ -134,6 +134,9 @@ which exercises the MCP tools without the web app.
 | PATCH | `/api/pricing-factors/{id}` | Tune one: `percent`, `label`, `is_active` |
 | DELETE | `/api/budgets/{id}/items/{item_id}` | Remove a line. Answers with the whole budget |
 | PATCH | `/api/budgets/{id}` | Change the header: `client_id`, `title`, `status`, `description`, `site_address`, `valid_until`, `site_factors` (condition codes, frozen onto the budget). Only the fields sent are written |
+
+Lines are stored at their base price. The conditions chosen for a budget are folded into the prices it charges by `services/pricing_service.py` on the way out — in every budget the API answers and in the PDF — so the lines always add up to the total and the customer never reads a percentage. Unticking a condition restores the base.
+
 | GET | `/api/standard-tasks` | Labor tasks catalog, for the manual entry form |
 | GET | `/api/clients` | Clients a budget can be addressed to; `search`, `limit` |
 | POST | `/api/clients` | Create. Only `full_name` is required |

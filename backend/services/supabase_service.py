@@ -544,6 +544,21 @@ def delete_budget_item(budget_id: str, item_id: str) -> bool:
     return bool(_execute(query, action="delete budget item"))
 
 
+def list_budget_items(budget_ids: list[str]) -> list[dict[str, Any]]:
+    """Return the lines of several budgets in one read."""
+    if not budget_ids:
+        return []
+
+    query = (
+        get_client()
+        .table(BUDGET_ITEMS_TABLE)
+        .select("*")
+        .in_("budget_id", budget_ids)
+        .order("sort_order")
+    )
+    return _execute(query, action="list budget items")
+
+
 def create_budget(budget: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any]:
     """Create a budget with its lines and return the complete budget.
 
