@@ -68,6 +68,16 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
   const materialsAdded = materialsCharged - materialsCharged / (1 + materialsPercent / 100);
   const hasSurcharge = labourPercent !== 0 || materialsPercent !== 0;
 
+  // What the quote will say for the conditions that are stated, not charged.
+  const notes = applied
+    .filter((factor) => factor.applies_to === "note")
+    .map((factor) =>
+      (factor.clause ?? `${factor.label}: {percent}%`).replace(
+        "{percent}",
+        formatQuantity(factor.percent),
+      ),
+    );
+
   // The closed panel says what is applied, and to what.
   const badge = [
     labourPercent ? `+${formatQuantity(labourPercent)}% mano de obra` : null,
@@ -165,7 +175,11 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
                   <span className="min-w-0">
                     <span className="block truncate">{factor.label}</span>
                     <span className="block text-[0.65rem] text-muted">
-                      sobre {factor.applies_to === "labor" ? "la mano de obra" : "los materiales"}
+                      {factor.applies_to === "labor"
+                        ? "sobre la mano de obra"
+                        : factor.applies_to === "materials"
+                          ? "sobre los materiales"
+                          : "se aclara en el PDF, no se calcula"}
                     </span>
                   </span>
                 </label>
@@ -174,6 +188,17 @@ export default function SiteConditions({ budget, isSaving, onChange }: SiteCondi
               </li>
             ))}
           </ul>
+
+          {notes.length > 0 ? (
+            <div className="border-t border-border pt-2">
+              <p className="text-[0.65rem] text-muted">En el PDF va a decir:</p>
+              {notes.map((sentence) => (
+                <p key={sentence} className="mt-1 text-xs italic">
+                  {sentence}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
           {hasSurcharge ? (
             <dl className="space-y-1 border-t border-border pt-2 text-xs">

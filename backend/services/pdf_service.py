@@ -610,21 +610,24 @@ def _totals_block(
         )
     )
 
-    # Keep the totals with the closing note so they are never orphaned.
-    return [
-        KeepTogether(
-            [
-                totals,
-                Spacer(1, 8 * mm),
-                Paragraph(
-                    "Los precios incluyen los materiales y la mano de obra detallados "
-                    "arriba. Los trabajos no descriptos en este documento se presupuestan "
-                    "aparte.",
-                    styles["muted"],
-                ),
-            ]
-        )
+    closing: list[Any] = [
+        totals,
+        Spacer(1, 8 * mm),
+        Paragraph(
+            "Los precios incluyen la mano de obra detallada arriba. Los trabajos no "
+            "descriptos en este documento se presupuestan aparte.",
+            styles["muted"],
+        ),
     ]
+
+    # Conditions that are stated rather than charged, e.g. what buying the
+    # materials costs, which is a percentage of a value nobody knows yet.
+    for sentence in pricing_service.clauses(budget.get("site_factors")):
+        closing.append(Spacer(1, 2 * mm))
+        closing.append(Paragraph(escape(sentence), styles["muted"]))
+
+    # Keep the totals with the closing note so they are never orphaned.
+    return [KeepTogether(closing)]
 
 
 # ---------------------------------------------------------------------------

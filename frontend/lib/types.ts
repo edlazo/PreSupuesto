@@ -88,7 +88,10 @@ export interface PricingFactor {
   label: string;
   description: string | null;
   percent: number;
-  applies_to: "labor" | "materials";
+  /** "note" is stated on the quote rather than charged. */
+  applies_to: "labor" | "materials" | "note";
+  /** Sentence printed for a note; {percent} carries its percentage. */
+  clause: string | null;
   /** Conditions sharing a group are alternatives, never both. */
   exclusive_group: string | null;
   is_active: boolean;
@@ -110,7 +113,8 @@ export interface AppliedFactor {
   code: string;
   label: string;
   percent: number;
-  applies_to: "labor" | "materials";
+  applies_to: "labor" | "materials" | "note";
+  clause?: string | null;
 }
 
 /** Payload accepted by PATCH /api/budgets/{id}. Every field is optional. */

@@ -23,7 +23,7 @@ type EntryMode = "package" | "catalog" | "list";
 
 const MODES: { id: EntryMode; label: string; hint: string }[] = [
   { id: "package", label: "Partida", hint: "Describís el trabajo y ponés un precio" },
-  { id: "catalog", label: "Del catálogo", hint: "Material o mano de obra por cantidad" },
+  { id: "catalog", label: "Mano de obra", hint: "Tarea del catálogo, cobrada por cantidad" },
   {
     id: "list",
     label: "Lista",
@@ -88,7 +88,6 @@ export default function ManualEntryForm() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<CatalogEntry | null>(null);
   const [quantity, setQuantity] = useState("");
-  const [waste, setWaste] = useState("");
   const [isListOpen, setIsListOpen] = useState(false);
   // The list the customer takes to the yard.
   const [listName, setListName] = useState("");
@@ -130,14 +129,21 @@ export default function ManualEntryForm() {
     };
   }, []);
 
+  // Materials are never charged on a budget — they go on the list — so only
+  // labour can be priced by quantity.
+  const labourEntries = useMemo(
+    () => entries.filter((entry) => entry.kind === "task"),
+    [entries],
+  );
+
   const results = useMemo(() => {
     const needle = normalize(search.trim());
 
     if (!needle) {
-      return entries.slice(0, MAX_RESULTS);
+      return labourEntries.slice(0, MAX_RESULTS);
     }
 
-    return entries
+    return labourEntries
       .filter(
         (entry) =>
           normalize(entry.name).includes(needle) ||
@@ -145,7 +151,7 @@ export default function ManualEntryForm() {
           normalize(entry.code).includes(needle),
       )
       .slice(0, MAX_RESULTS);
-  }, [entries, search]);
+  }, [labourEntries, search]);
 
   const nameResults = useMemo(() => {
     const needle = normalize(listName.trim());
@@ -160,7 +166,6 @@ export default function ManualEntryForm() {
   }, [entries, listName]);
 
   const parsedQuantity = Number(quantity.replace(",", "."));
-  const parsedWaste = waste.trim() === "" ? 0 : Number(waste.replace(",", "."));
   const parsedPrice = Number(price.replace(/\./g, "").replace(",", "."));
   const hasValidQuantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0;
   const hasValidPrice = Number.isFinite(parsedPrice) && parsedPrice > 0;
@@ -182,12 +187,8 @@ export default function ManualEntryForm() {
       : mode === "list"
         ? 0
         : selected && hasValidQuantity
-        ? selected.price *
-          parsedQuantity *
-          (selected.kind === "material" && Number.isFinite(parsedWaste)
-            ? 1 + parsedWaste / 100
-            : 1)
-        : 0;
+          ? selected.price * parsedQuantity
+          : 0;
 
   function pick(entry: CatalogEntry) {
     setSelected(entry);
@@ -246,14 +247,11 @@ export default function ManualEntryForm() {
       material_id: selected.kind === "material" ? selected.id : null,
       standard_task_id: selected.kind === "task" ? selected.id : null,
       quantity: parsedQuantity,
-      waste_percent:
-        selected.kind === "material" && Number.isFinite(parsedWaste) ? parsedWaste : 0,
     });
 
     setNotice(`Agregado: ${selected.name}`);
     setSelected(null);
     setQuantity("");
-    setWaste("");
     searchRef.current?.focus();
   }
 
@@ -473,7 +471,7 @@ export default function ManualEntryForm() {
             {/* Search and pick ----------------------------------------------- */}
             <div className="relative min-w-0 flex-1">
               <label htmlFor={`${listId}-search`} className="text-xs font-medium text-muted">
-                Material o mano de obra
+                Tarea de mano de obra
               </label>
 
               {selected ? (
@@ -508,7 +506,7 @@ export default function ManualEntryForm() {
                     aria-controls={`${listId}-results`}
                     aria-autocomplete="list"
                     value={search}
-                    placeholder="Buscá ladrillo, pintura, colocación…"
+                    placeholder="Buscá colocación, pintura, demolición…"
                     onChange={(event) => {
                       setSearch(event.target.value);
                       setIsListOpen(true);
@@ -582,24 +580,6 @@ export default function ManualEntryForm() {
                 value={quantity}
                 placeholder="0"
                 onChange={(event) => setQuantity(event.target.value)}
-                className={`mt-1 ${FIELD_CLASS}`}
-              />
-            </div>
-
-            {/* Waste, materials only ----------------------------------------- */}
-            <div className={`w-full lg:w-28 ${selected?.kind === "task" ? "hidden" : ""}`}>
-              <label htmlFor={`${listId}-waste`} className="text-xs font-medium text-muted">
-                Desperdicio %
-              </label>
-              <input
-                id={`${listId}-waste`}
-                type="number"
-                min={0}
-                max={100}
-                step="1"
-                value={waste}
-                placeholder="0"
-                onChange={(event) => setWaste(event.target.value)}
                 className={`mt-1 ${FIELD_CLASS}`}
               />
             </div>

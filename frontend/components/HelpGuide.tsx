@@ -82,9 +82,14 @@ export default function HelpGuide() {
         {/* 1 ----------------------------------------------------------------- */}
         <GuideSection id="materiales" number={1} title="Gestión de materiales">
           <p>
-            En <PageLink href="/materials">Materiales</PageLink> está la lista de precios
-            con la que el asistente calcula todo. Si un precio está desactualizado, el
-            presupuesto va a salir mal: este es el lugar para mantenerlo al día.
+            En <PageLink href="/materials">Materiales</PageLink> está tu catálogo: los
+            nombres y las unidades con los que armás la lista de un presupuesto, más los
+            precios que llevás de referencia.
+          </p>
+          <p>
+            <strong>Esos precios no entran al presupuesto.</strong> Lo que salen los
+            materiales lo manejás vos con el corralón; al cliente se le informa qué se va a
+            comprar, no cuánto sale.
           </p>
 
           <Steps title="Para cargar un material nuevo">
@@ -168,8 +173,9 @@ export default function HelpGuide() {
           </p>
 
           <p>
-            Hay dos formas de sumar una línea, y elegís cuál con el botón de arriba a la
-            derecha del formulario: <strong>Partida</strong> o <strong>Del catálogo</strong>.
+            Hay tres formas de sumar una línea, y elegís cuál con los botones de arriba a
+            la derecha del formulario: <strong>Partida</strong>, <strong>Mano de obra</strong>{" "}
+            y <strong>Lista</strong>.
           </p>
 
           <Steps title="Partida: describís el trabajo y ponés el precio">
@@ -193,19 +199,18 @@ export default function HelpGuide() {
             </li>
           </Steps>
 
-          <Steps title="Del catálogo: cobrás por cantidad">
+          <Steps title="Mano de obra: cobrás por cantidad">
             <li>
-              Escribí en <strong>Material o mano de obra</strong> lo que buscás: sirve el
-              nombre, la categoría o el código. Aparecen juntos los materiales y las
-              tareas de mano de obra.
+              Escribí en <strong>Tarea de mano de obra</strong> lo que buscás: sirve el
+              nombre, el rubro o el código. Los materiales no aparecen acá —{" "}
+              <strong>no se cobran en el presupuesto</strong>, van en la Lista.
             </li>
             <li>
               Tocá el que quieras de la lista. Si apretás <Key>Enter</Key>, se elige el
               primero.
             </li>
             <li>
-              Poné la <strong>cantidad</strong> en la unidad que te muestra (m2, u,
-              bolsa…). Para materiales podés sumar un <strong>desperdicio %</strong>.
+              Poné la <strong>cantidad</strong> en la unidad que te muestra (m2, u, ml…).
             </li>
             <li>
               Tocá <Button>Agregar al presupuesto</Button>. La línea aparece abajo y los
@@ -265,9 +270,12 @@ export default function HelpGuide() {
               sí, y los cambiás tocándolos.
             </p>
             <p className="mt-2">
-              Si los materiales los comprás vos, elegí <strong>Provincia</strong> o{" "}
-              <strong>Capital</strong>: son alternativas, nunca las dos, y suben el precio de
-              los materiales en lugar del de la mano de obra.
+              <strong>Compra de materiales</strong> es distinto: no cambia ningún número,
+              porque cuánto salen los materiales lo sabés vos, no el sistema. Elegí{" "}
+              <strong>Provincia</strong> o <strong>Capital</strong> —son alternativas, nunca
+              las dos— y el PDF lo aclara con una frase:{" "}
+              <em>&ldquo;Por la compra de materiales se cobra un 15% del valor de los
+              mismos&rdquo;</em>.
             </p>
             <p className="mt-2">
               <strong>El cliente no ve ningún porcentaje.</strong> El recargo queda repartido

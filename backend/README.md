@@ -135,7 +135,7 @@ which exercises the MCP tools without the web app.
 | DELETE | `/api/budgets/{id}/items/{item_id}` | Remove a line. Answers with the whole budget |
 | PATCH | `/api/budgets/{id}` | Change the header: `client_id`, `title`, `status`, `description`, `site_address`, `valid_until`, `site_factors` (condition codes, frozen onto the budget). Only the fields sent are written |
 
-Lines are stored at their base price. The conditions chosen for a budget are folded into the prices it charges by `services/pricing_service.py` on the way out — in every budget the API answers and in the PDF — so the lines always add up to the total and the customer never reads a percentage. Unticking a condition restores the base.
+A condition whose `applies_to` is `note` states something instead of charging it: what the materials cost is the contractor's business and never reaches a budget, so the percentage for buying them is printed as a sentence rather than applied. Everything else is a multiplier: lines are stored at their base price and the conditions are folded into the prices the budget charges by `services/pricing_service.py` on the way out — in every budget the API answers and in the PDF — so the lines always add up to the total and the customer never reads a percentage. Unticking a condition restores the base.
 
 | GET | `/api/standard-tasks` | Labor tasks catalog, for the manual entry form |
 | GET | `/api/clients` | Clients a budget can be addressed to; `search`, `limit` |

@@ -115,7 +115,8 @@ class StandardTaskRead(BaseModel):
 # ---------------------------------------------------------------------------
 # Pricing factors
 # ---------------------------------------------------------------------------
-FactorBase = Literal["labor", "materials"]
+# "note" is a condition that is stated on the quote rather than charged.
+FactorBase = Literal["labor", "materials", "note"]
 
 
 class PricingFactorRead(BaseModel):
@@ -127,6 +128,10 @@ class PricingFactorRead(BaseModel):
     description: Optional[str] = None
     percent: float
     applies_to: FactorBase
+    clause: Optional[str] = Field(
+        default=None,
+        description="Sentence printed for a note factor; {percent} is substituted",
+    )
     exclusive_group: Optional[str] = Field(
         default=None,
         description="Conditions sharing a group are alternatives, never both",
@@ -157,6 +162,7 @@ class AppliedFactor(BaseModel):
     label: str
     percent: float
     applies_to: FactorBase
+    clause: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

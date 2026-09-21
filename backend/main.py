@@ -702,6 +702,7 @@ def update_budget(budget_id: str, payload: BudgetUpdate) -> BudgetRead:
                 "label": factor["label"],
                 "percent": float(factor["percent"]),
                 "applies_to": factor["applies_to"],
+                "clause": factor.get("clause"),
             }
             for factor in factors
         ]

@@ -112,8 +112,11 @@ create table if not exists public.pricing_factors (
   description text,
   -- What it adds, e.g. 40 for "a flat costs 40% more".
   percent     numeric(6, 2) not null check (percent >= -100 and percent <= 500),
-  -- Which part of the budget it is computed on.
-  applies_to  text not null check (applies_to in ('labor', 'materials')),
+  -- Which part of the budget it is computed on, or 'note' for a condition
+  -- that is stated on the quote rather than calculated.
+  applies_to  text not null check (applies_to in ('labor', 'materials', 'note')),
+  -- The sentence to print for a note; {percent} carries its percentage.
+  clause      text,
   -- Conditions sharing a group are alternatives: buying the materials costs
   -- 15% in the province and 20% in the capital, never both.
   exclusive_group text,
@@ -264,11 +267,15 @@ values
    50, 'labor', null, 30),
   ('compra_materiales_provincia', 'Compra de materiales · Provincia',
    'Los materiales los compra el contratista, para una obra en provincia',
-   15, 'materials', 'compra_materiales', 40),
+   15, 'note', 'compra_materiales', 40),
   ('compra_materiales_capital', 'Compra de materiales · Capital',
    'Los materiales los compra el contratista, para una obra en Capital',
-   20, 'materials', 'compra_materiales', 50)
+   20, 'note', 'compra_materiales', 50)
 on conflict (code) do nothing;
+
+update public.pricing_factors
+   set clause = 'Por la compra de materiales se cobra un {percent}% del valor de los mismos.'
+ where code in ('compra_materiales_provincia', 'compra_materiales_capital');
 
 -- -----------------------------------------------------------------------------
 -- Seed data: construction materials with initial unit prices in ARS

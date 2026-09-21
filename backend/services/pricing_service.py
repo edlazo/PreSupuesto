@@ -44,14 +44,37 @@ def multipliers(site_factors: Optional[list[dict[str, Any]]]) -> tuple[Decimal, 
 
     for factor in site_factors or []:
         percent = _to_decimal(factor.get("percent"))
+        applies_to = factor.get("applies_to")
 
-        if factor.get("applies_to") == "materials":
+        # A 'note' factor multiplies nothing: it is printed as a sentence.
+        if applies_to == "materials":
             materials += percent
-        else:
+        elif applies_to == "labor":
             labor += percent
 
     hundred = Decimal("100")
     return Decimal("1") + labor / hundred, Decimal("1") + materials / hundred
+
+
+def clauses(site_factors: Optional[list[dict[str, Any]]]) -> list[str]:
+    """The sentences to print for the conditions that are stated, not charged.
+
+    What the materials cost is the contractor's business and never reaches a
+    budget, so the percentage charged for buying them is written out the way
+    it is written by hand, rather than applied to a number nobody has.
+    """
+    printed: list[str] = []
+
+    for factor in site_factors or []:
+        if factor.get("applies_to") != "note":
+            continue
+
+        percent = _to_decimal(factor.get("percent"))
+        percent_text = f"{percent.normalize():f}"
+        template = factor.get("clause") or f"{factor.get('label') or ''}: {{percent}}%"
+        printed.append(str(template).replace("{percent}", percent_text))
+
+    return printed
 
 
 def apply_site_factors(budget: dict[str, Any]) -> dict[str, Any]:
