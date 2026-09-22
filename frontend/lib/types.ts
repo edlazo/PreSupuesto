@@ -103,6 +103,7 @@ export interface BudgetUpdate {
   description?: string | null;
   site_address?: string | null;
   status?: BudgetStatus;
+  /** Date the quote is good until, as YYYY-MM-DD. Null takes it off. */
   valid_until?: string | null;
   /** Codes of the conditions that apply. */
   site_factors?: string[];

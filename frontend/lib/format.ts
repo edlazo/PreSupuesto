@@ -56,13 +56,24 @@ export function formatQuantity(quantity: number): string {
   return QUANTITY_FORMAT.format(quantity);
 }
 
-/** Format an ISO timestamp as a short date, e.g. "17 sept 2026". */
+/** A plain date, with no time: "2026-10-07". */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Format an ISO timestamp as a short date, e.g. "17 sept 2026".
+ *
+ * A date with no time — what `valid_until` is — would be read as midnight UTC
+ * and then shown in local time, landing on the day before in Argentina, so it
+ * is built as a local date instead.
+ */
 export function formatDate(value: string | null): string {
   if (!value) {
     return "—";
   }
 
-  const date = new Date(value);
+  const date = DATE_ONLY.test(value)
+    ? new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)))
+    : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "—";

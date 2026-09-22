@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import {
   ApiError,
   addBudgetItem,
+  adjustBudgetPrices,
   createBudget,
   deleteBudgetItem,
   getBudget,
@@ -43,6 +44,10 @@ interface BudgetWorkspaceValue {
   setItemQuoted: (itemId: string, isQuoted: boolean) => Promise<void>;
   /** Address the budget to a client, replacing the stand-in one. */
   assignClient: (clientId: string) => Promise<void>;
+  /** Say until when the quote holds, or null to take the date off. */
+  setValidUntil: (validUntil: string | null) => Promise<void>;
+  /** Shift every charged line by a percentage, for an old quote. */
+  adjustPrices: (percentage: number) => Promise<void>;
   /** Move the budget to Borrador, En proceso or Terminado / cobrado. */
   setStatus: (status: BudgetStatus) => Promise<void>;
   /** Reword a line already added: its name, what it includes, its remark. */
@@ -270,6 +275,46 @@ export default function BudgetWorkspaceProvider({
     [budget],
   );
 
+  const setValidUntil = useCallback(
+    async (validUntil: string | null) => {
+      if (!budget) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await updateBudget(budget.id, { valid_until: validUntil }));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudo cambiar la validez.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
+  const adjustPrices = useCallback(
+    async (percentage: number) => {
+      if (!budget || percentage === 0) return;
+
+      setIsSaving(true);
+
+      try {
+        setBudget(await adjustBudgetPrices(budget.id, percentage));
+        setError(null);
+      } catch (caught) {
+        setError(
+          caught instanceof ApiError ? caught.message : "No se pudieron actualizar los precios.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [budget],
+  );
+
   const setStatus = useCallback(
     async (status: BudgetStatus) => {
       if (!budget || budget.status === status) return;
@@ -361,6 +406,8 @@ export default function BudgetWorkspaceProvider({
       updateListedQuantity,
       assignClient,
       setStatus,
+      setValidUntil,
+      adjustPrices,
       editItemText,
       setSiteFactors,
       reload,
@@ -380,6 +427,8 @@ export default function BudgetWorkspaceProvider({
       updateListedQuantity,
       assignClient,
       setStatus,
+      setValidUntil,
+      adjustPrices,
       editItemText,
       setSiteFactors,
       reload,

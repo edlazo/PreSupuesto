@@ -232,6 +232,17 @@ export function updateBudget(budgetId: string, payload: BudgetUpdate): Promise<B
   });
 }
 
+/**
+ * Shift every charged line of a budget by a percentage, for a quote whose
+ * prices have fallen behind. Listed materials are left alone.
+ */
+export function adjustBudgetPrices(budgetId: string, percentage: number): Promise<Budget> {
+  return request<Budget>(`/api/budgets/${budgetId}/adjust-prices`, {
+    method: "POST",
+    body: JSON.stringify({ percentage }),
+  });
+}
+
 /** Delete a budget and all of its lines. There is no undo. */
 export function deleteBudget(budgetId: string): Promise<{ id: string; deleted: boolean }> {
   return request<{ id: string; deleted: boolean }>(`/api/budgets/${budgetId}`, {

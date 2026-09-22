@@ -247,6 +247,16 @@ class BudgetUpdate(BaseModel):
     )
 
 
+class PriceAdjustment(BaseModel):
+    """Payload to shift every charged line of a budget by a percentage."""
+
+    percentage: float = Field(
+        ge=-99,
+        le=500,
+        description="12.5 raises the prices by 12.5%, -10 lowers them by 10%",
+    )
+
+
 class BudgetItemCreate(BaseModel):
     """Payload to append one line to a budget.
 

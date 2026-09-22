@@ -8,8 +8,10 @@ import SiteConditions from "@/components/SiteConditions";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import { MAX_QUANTITY_TEXT } from "@/lib/materialList";
+import PriceAdjuster from "@/components/PriceAdjuster";
 import SharePdfButton from "@/components/SharePdfButton";
 import StatusPicker from "@/components/StatusPicker";
+import ValidityField from "@/components/ValidityField";
 import { STATUS_LABELS } from "@/lib/status";
 import type { Budget, BudgetItem, BudgetItemUpdate } from "@/lib/types";
 
@@ -92,6 +94,8 @@ export default function BudgetPreview() {
     setItemQuoted,
     assignClient,
     setStatus,
+    setValidUntil,
+    adjustPrices,
     editItemText,
     setSiteFactors,
     reload,
@@ -141,6 +145,31 @@ export default function BudgetPreview() {
     const multiplier = item.item_type === "material" ? materials : labor;
 
     void updateItemPrice(itemId, roundToCents(chargedPrice / multiplier));
+  }
+
+  /**
+   * The total a percentage would leave, rounded line by line as the backend
+   * rounds it, so the figure shown before applying is the one that lands.
+   */
+  function estimateAdjustedTotal(percentage: number): number {
+    if (!budget) return 0;
+
+    const factor = 1 + percentage / 100;
+    const { labor, materials } = multipliers(budget);
+    let subtotal = 0;
+
+    for (const item of budget.items) {
+      if (item.is_quoted === false) continue;
+
+      const base = Math.max(roundToCents(item.unit_price * factor), 0);
+      const multiplier = item.item_type === "material" ? materials : labor;
+      subtotal += roundToCents(roundToCents(base * multiplier) * item.quantity);
+    }
+
+    const tax = roundToCents((subtotal * budget.tax_rate) / 100);
+    const total = roundToCents(subtotal + tax);
+
+    return isConverted ? roundToCents(total / (sellRate as number)) : total;
   }
 
   /** Move a line between what is charged and what the customer buys. */
@@ -295,8 +324,13 @@ export default function BudgetPreview() {
               {/* The picker is left out of the printout; the status is not. */}
               <span className="print-only text-xs font-medium">{STATUS_LABELS[budget.status]}</span>
               <span className="text-xs text-muted">Creado el {formatDate(budget.created_at)}</span>
+              <ValidityField
+                validUntil={budget.valid_until}
+                isSaving={isSaving}
+                onChange={(validUntil) => void setValidUntil(validUntil)}
+              />
               {budget.valid_until ? (
-                <span className="text-xs text-muted">
+                <span className="print-only text-xs">
                   · Válido hasta el {formatDate(budget.valid_until)}
                 </span>
               ) : null}
@@ -370,6 +404,16 @@ export default function BudgetPreview() {
               isSaving={isSaving}
               onChange={(codes) => void setSiteFactors(codes)}
             />
+
+            {quoted.length > 0 ? (
+              <PriceAdjuster
+                currentTotal={view.total}
+                currency={currency}
+                isSaving={isSaving}
+                estimate={estimateAdjustedTotal}
+                onApply={(percentage) => void adjustPrices(percentage)}
+              />
+            ) : null}
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
               {packages.length > 0 ? (

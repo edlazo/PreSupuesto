@@ -157,6 +157,13 @@ export default function HelpGuide() {
                 corresponda.
               </li>
               <li>
+                Al lado de la fecha está <strong>Sin vencimiento</strong>: tocalo y elegí{" "}
+                <Button>7 días</Button>, <Button>15 días</Button>, <Button>30 días</Button>{" "}
+                o una fecha del calendario. Sale en el PDF como{" "}
+                <em>Válido hasta</em>, que es lo que te cubre si el cliente aparece dos
+                meses después con el presupuesto viejo.
+              </li>
+              <li>
                 <Button>Nuevo</Button> arranca un presupuesto vacío; el anterior queda
                 guardado.
               </li>
@@ -230,6 +237,19 @@ export default function HelpGuide() {
               <Button>+ Cargar un cliente nuevo</Button> (alcanza con el nombre; el
               teléfono, el mail y la dirección son opcionales). El nombre y los datos que
               cargues son los que salen en el PDF.
+            </p>
+          </Callout>
+
+          <Callout title="Si los precios quedaron viejos">
+            <p>
+              Abajo del presupuesto, tocá <Button>Actualizar precios</Button>, escribí el
+              porcentaje (<Code>12</Code> sube un 12%, <Code>-5</Code> baja un 5%) y{" "}
+              <Button>Aplicar</Button>. Antes de aplicar te dice en cuánto queda el total.
+            </p>
+            <p className="mt-2">
+              Cambia <strong>todos los trabajos</strong> del presupuesto de una vez. Los
+              materiales de la lista no se tocan, porque no tienen precio. Si te
+              equivocaste, tocá <Button>Deshacer</Button> y vuelve exacto a como estaba.
             </p>
           </Callout>
 

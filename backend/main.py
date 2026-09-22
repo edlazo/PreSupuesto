@@ -15,6 +15,7 @@ Endpoints:
 * `POST   /api/budgets/{id}/items` — append a line
 * `DELETE /api/budgets/{id}/items/{item_id}` — remove a line
 * `DELETE /api/budgets/{id}`     — delete a budget and its lines
+* `POST   /api/budgets/{id}/adjust-prices` — shift every charged line by a percentage
 * `GET    /api/standard-tasks`   — labor tasks catalog
 * `GET    /api/currency/blue`    — current blue dollar rate
 * `POST   /api/chat`             — talk to the Hermes Agent
@@ -53,6 +54,7 @@ from models import (
     MaterialCreate,
     MaterialRead,
     MaterialUpdate,
+    PriceAdjustment,
     StandardTaskRead,
 )
 from services import (
@@ -77,6 +79,7 @@ UNIQUE_VIOLATION = "23505"
 
 # `budget_items.quantity` is numeric(12, 3).
 QUANTITY_STEP = Decimal("0.001")
+CENTS = Decimal("0.01")
 FOREIGN_KEY_VIOLATION = "23503"
 
 # The only routes open without a session.
@@ -721,6 +724,56 @@ def delete_budget_item(budget_id: str, item_id: str) -> BudgetRead:
     return BudgetRead.model_validate(_as_charged(budget))
 
 
+@app.post(
+    "/api/budgets/{budget_id}/adjust-prices",
+    response_model=BudgetRead,
+    tags=["budgets"],
+)
+def adjust_budget_prices(budget_id: str, payload: PriceAdjustment) -> BudgetRead:
+    """Shift every charged line of a budget by a percentage.
+
+    What an old quote is worth moves with inflation, and rewriting it line by
+    line is the tedious part. Listed materials are left alone — they carry no
+    price — and so are the site conditions, which are applied on top of these
+    base prices as always.
+    """
+    factor = Decimal("1") + Decimal(str(payload.percentage)) / Decimal("100")
+
+    try:
+        budget = supabase_service.get_budget(budget_id)
+
+        if budget is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto"
+            )
+
+        for item in budget.get("items") or []:
+            if item.get("is_quoted") is False:
+                continue
+
+            current = Decimal(str(item.get("unit_price") or 0))
+            new_price = (current * factor).quantize(CENTS, rounding=ROUND_HALF_UP)
+
+            # A price cannot be talked below zero, and one that does not move
+            # is not written at all.
+            new_price = max(new_price, Decimal("0"))
+            if new_price == current:
+                continue
+
+            supabase_service.update_budget_item(
+                budget_id, str(item["id"]), {"unit_price": float(new_price)}
+            )
+
+        updated = supabase_service.get_budget(budget_id)
+    except SupabaseServiceError as exc:
+        raise _handle_supabase_error(exc) from exc
+
+    if updated is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No se encontró el presupuesto")
+
+    return BudgetRead.model_validate(_as_charged(updated))
+
+
 @app.get("/api/budgets/{budget_id}", response_model=BudgetRead, tags=["budgets"])
 def get_budget(budget_id: str) -> BudgetRead:
     """Read one budget with all of its lines."""
@@ -758,11 +811,19 @@ def update_budget(budget_id: str, payload: BudgetUpdate) -> BudgetRead:
     """Change a budget header: its client, its title or its status.
 
     Only the fields that were sent are written, so assigning a client does not
-    disturb anything else the budget already carries.
+    disturb anything else the budget already carries. Sending `valid_until`
+    as null takes the date off.
     """
-    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    # `exclude_none` keeps an omitted field from clearing what is stored;
+    # `valid_until` is the exception, where null is how a date is taken off.
+    changes = payload.model_dump(exclude_unset=True)
+    changes = {
+        field: value
+        for field, value in changes.items()
+        if value is not None or field == "valid_until"
+    }
 
-    if "valid_until" in changes:
+    if changes.get("valid_until") is not None:
         changes["valid_until"] = changes["valid_until"].isoformat()
 
     # Codes come in; what goes to the database is a frozen copy of each
