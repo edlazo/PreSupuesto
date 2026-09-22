@@ -35,6 +35,10 @@ line's type to what it points at — so a row the real database would refuse
 fails the tests too. Keep it in step with `supabase/schema.sql` when a
 migration changes a table.
 
+`tests/test_schema_sql.py` parses `supabase/schema.sql` and every migration
+with PostgreSQL's own parser (pglast), since those are pasted into Supabase by
+hand. GitHub Actions runs the whole suite on every push; see `DEPLOY.md`.
+
 ## How the pieces fit
 
 Hermes Agent runs as its own process, not as a library inside FastAPI. Two

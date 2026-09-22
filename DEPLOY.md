@@ -63,9 +63,29 @@ Supabase stays where it is: both local and deployed apps use the same database.
 - `https://<domain>/entrar#k=<ACCESS_KEY>` lands on the desk, signed in. That
   link is what the user gets.
 
+## Checks before release
+
+`.github/workflows/ci.yml` runs on every push and pull request, with no
+secrets and no access to the real database:
+
+| GitHub check (job name) | What it runs |
+| --- | --- |
+| `Backend tests` | `pytest` in `backend/` — API, pricing, PDF, access, and every SQL file parsed |
+| `Frontend lint, tests and build` | `npm run lint`, `npm test`, `npm run build` (which type-checks) |
+
+To keep a broken push off the live site, require both in Vercel: **Settings →
+Build and Deployment → Deployment Checks → Add Checks → GitHub**, then pick the
+two names above (they show up once the workflow has run at least once). Vercel
+then builds each push but only assigns it to the production domain when both
+pass; until then the previous deployment stays live. **Force Promote** on a
+deployment skips the checks when needed. Renaming a job means updating the
+check here too.
+
 ## Day to day
 
-- Every push to `main` redeploys.
+- Every push to `main` redeploys, and goes live once the checks pass.
+- Before pushing, the same checks run locally with `python -m pytest` in
+  `backend/` and `npm test && npm run lint && npm run build` in `frontend/`.
 - **A leaked link:** generate a new key with `new_access_key.py`, replace
   `ACCESS_KEY` in the project, redeploy. Every old link and session stops
   working at once.

@@ -3,3 +3,5 @@
 pytest>=8.3
 # Reads the text back out of the generated PDFs.
 pypdfium2>=4.30
+# Parses supabase/schema.sql and the migrations with PostgreSQL's own parser.
+pglast>=7.0
