@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import SharePdfButton from "@/components/SharePdfButton";
 import StatusPicker from "@/components/StatusPicker";
 import {
   ApiError,
@@ -167,6 +168,13 @@ export default function BudgetHistory() {
         <PdfButton
           onClick={() => void handleDownload(budget)}
           isBusy={downloadingId === budget.id}
+          className="flex-1 md:flex-none"
+        />
+        <SharePdfButton
+          budgetId={budget.id}
+          budgetNumber={budget.budget_number}
+          title={budget.title}
+          onError={setError}
           className="flex-1 md:flex-none"
         />
         <button

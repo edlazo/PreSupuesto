@@ -255,12 +255,6 @@ function filenameFromResponse(response: Response, fallback: string): string {
   return match ? decodeURIComponent(match[1]) : fallback;
 }
 
-/**
- * Download a budget as a PDF.
- *
- * The file is fetched rather than opened in a tab so a failure surfaces as an
- * ApiError the caller can show, instead of an error page in a new window.
- */
 export interface PdfOptions {
   /** Currency to print, e.g. "USD". Defaults to the budget's own. */
   currency?: string;
@@ -268,11 +262,17 @@ export interface PdfOptions {
   rate?: number;
 }
 
-export async function downloadBudgetPdf(
+/**
+ * Fetch a budget's PDF as a file, named the way the backend suggests.
+ *
+ * It is fetched rather than opened in a tab so a failure surfaces as an
+ * ApiError the caller can show, instead of an error page in a new window.
+ */
+export async function fetchBudgetPdf(
   budgetId: string,
   fallbackName = "presupuesto.pdf",
   options: PdfOptions = {},
-): Promise<void> {
+): Promise<File> {
   const params = new URLSearchParams();
 
   if (options.currency) params.set("currency", options.currency);
@@ -287,10 +287,7 @@ export async function downloadBudgetPdf(
       { cache: "no-store", headers: authHeaders() },
     );
   } catch {
-    throw new ApiError(
-      UNREACHABLE,
-      0,
-    );
+    throw new ApiError(UNREACHABLE, 0);
   }
 
   if (!response.ok) {
@@ -299,11 +296,23 @@ export async function downloadBudgetPdf(
   }
 
   const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
+  return new File([blob], filenameFromResponse(response, fallbackName), {
+    type: "application/pdf",
+  });
+}
+
+/** Download a budget as a PDF. */
+export async function downloadBudgetPdf(
+  budgetId: string,
+  fallbackName = "presupuesto.pdf",
+  options: PdfOptions = {},
+): Promise<void> {
+  const file = await fetchBudgetPdf(budgetId, fallbackName, options);
+  const objectUrl = URL.createObjectURL(file);
   const link = document.createElement("a");
 
   link.href = objectUrl;
-  link.download = filenameFromResponse(response, fallbackName);
+  link.download = file.name;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -8,6 +8,7 @@ import SiteConditions from "@/components/SiteConditions";
 import { ApiError, downloadBudgetPdf } from "@/lib/api";
 import { convertAmount, formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 import { MAX_QUANTITY_TEXT } from "@/lib/materialList";
+import SharePdfButton from "@/components/SharePdfButton";
 import StatusPicker from "@/components/StatusPicker";
 import { STATUS_LABELS } from "@/lib/status";
 import type { Budget, BudgetItem, BudgetItemUpdate } from "@/lib/types";
@@ -248,6 +249,18 @@ export default function BudgetPreview() {
           >
             {isExporting ? "Generando…" : "Exportar PDF"}
           </button>
+          {budget ? (
+            <SharePdfButton
+              budgetId={budget.id}
+              budgetNumber={budget.budget_number}
+              title={budget.title}
+              options={{
+                currency: displayCurrency,
+                rate: isConverted ? (sellRate as number) : undefined,
+              }}
+              onError={setExportError}
+            />
+          ) : null}
         </div>
       </header>
 

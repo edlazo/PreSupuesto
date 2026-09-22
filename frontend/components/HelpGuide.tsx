@@ -391,6 +391,17 @@ export default function HelpGuide() {
 
           <Steps title="Para mandarlo por WhatsApp">
             <li>
+              <strong>Desde el teléfono:</strong> tocá <Button>Compartir</Button>, al lado de{" "}
+              <Button>Exportar PDF</Button> o en el historial. Se abre el menú del celular
+              con el PDF ya adjunto: elegí WhatsApp y el contacto. Sale en la moneda que
+              estás viendo, pesos o dólares.
+            </li>
+            <li>
+              Si en vez de abrirse el menú el botón pasa a decir{" "}
+              <Button>Enviar PDF</Button>, tocalo de nuevo: pasa en algunos iPhone cuando
+              el PDF tarda un poco en armarse.
+            </li>
+            <li>
               <strong>Desde la computadora:</strong> abrí{" "}
               <a
                 href="https://web.whatsapp.com"
@@ -403,11 +414,9 @@ export default function HelpGuide() {
               , entrá al chat del cliente y tocá el clip 📎 → <strong>Documento</strong>.
             </li>
             <li>
-              Elegí el PDF en <strong>Descargas</strong> y enviá.
-            </li>
-            <li>
-              <strong>Desde el teléfono:</strong> abrí el archivo en Descargas, tocá{" "}
-              <strong>Compartir</strong> y elegí WhatsApp y el contacto.
+              Elegí el PDF en <strong>Descargas</strong> y enviá. En la computadora el botón
+              Compartir no aparece: la mayoría de los navegadores de escritorio no pueden
+              mandar archivos así.
             </li>
           </Steps>
 
