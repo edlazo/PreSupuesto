@@ -70,7 +70,11 @@ from services.auth_service import AuthNotConfiguredError
 from services.currency_service import CurrencyServiceError
 from services.pdf_service import PdfServiceError
 from services.hermes_service import HermesServiceError
-from services.supabase_service import NotConfiguredError, SupabaseServiceError
+from services.supabase_service import (
+    DatabaseUnreachableError,
+    NotConfiguredError,
+    SupabaseServiceError,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -134,6 +138,10 @@ app.add_middleware(
 def _handle_supabase_error(exc: SupabaseServiceError) -> HTTPException:
     """Translate a Supabase failure into the right HTTP error."""
     if isinstance(exc, NotConfiguredError):
+        return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.message)
+    if isinstance(exc, DatabaseUnreachableError):
+        # Nothing is wrong with the request: the database is away, and trying
+        # again later is the whole of the advice.
         return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.message)
     if exc.code == UNIQUE_VIOLATION:
         return HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un material con ese código")

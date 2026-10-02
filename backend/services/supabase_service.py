@@ -15,6 +15,7 @@ import unicodedata
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Optional
 
+import httpx
 from supabase import Client, create_client
 
 from config import settings
@@ -84,6 +85,51 @@ class NotConfiguredError(SupabaseServiceError):
     """Raised when the Supabase credentials are missing."""
 
 
+class DatabaseUnreachableError(SupabaseServiceError):
+    """Raised when the request never got as far as the database."""
+
+
+# What someone using the app is told when the database cannot be reached. The
+# errno behind it ("[Errno 16] Device or resource busy" on the server, "[Errno
+# 11001] getaddrinfo failed" on Windows) says nothing to them, so it goes to
+# the log instead. A paused Supabase project looks exactly like this.
+UNREACHABLE_MESSAGE = "No me puedo conectar con la base de datos. Probá de nuevo en un rato."
+
+# How failing to reach the database shows up: httpx raises these before any
+# answer arrives, and a bare socket error arrives as OSError.
+TRANSPORT_FAILURES = (httpx.TransportError, OSError)
+
+
+def _never_arrived(exc: BaseException) -> bool:
+    """True when the request failed on the way out, rather than being refused.
+
+    The client libraries sometimes re-raise a transport failure as their own
+    error, so the chain behind it is followed too.
+    """
+    seen: set[int] = set()
+    current: Optional[BaseException] = exc
+
+    while current is not None and id(current) not in seen:
+        if isinstance(current, TRANSPORT_FAILURES):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
+def _failure(exc: Exception, *, action: str) -> SupabaseServiceError:
+    """Turn whatever went wrong into the error the caller should raise."""
+    message = getattr(exc, "message", None) or str(exc)
+
+    if _never_arrived(exc):
+        logger.error("Supabase %s could not reach the database: %s", action, message)
+        return DatabaseUnreachableError(UNREACHABLE_MESSAGE)
+
+    logger.error("Supabase %s failed: %s", action, message)
+    return SupabaseServiceError(f"{action} failed: {message}", code=getattr(exc, "code", None))
+
+
 def get_client() -> Client:
     """Return the shared Supabase client, creating it on first use."""
     global _client
@@ -106,10 +152,7 @@ def _execute(query: Any, *, action: str) -> list[dict[str, Any]]:
     try:
         response = query.execute()
     except Exception as exc:  # postgrest raises APIError and httpx errors
-        code = getattr(exc, "code", None)
-        message = getattr(exc, "message", None) or str(exc)
-        logger.error("Supabase %s failed: %s", action, message)
-        raise SupabaseServiceError(f"{action} failed: {message}", code=code) from exc
+        raise _failure(exc, action=action) from exc
 
     data = getattr(response, "data", None)
     if data is None:
@@ -328,8 +371,7 @@ def count_materials(
     try:
         response = query.limit(1).execute()
     except Exception as exc:
-        message = getattr(exc, "message", None) or str(exc)
-        raise SupabaseServiceError(f"count materials failed: {message}") from exc
+        raise _failure(exc, action="count materials") from exc
 
     return int(getattr(response, "count", 0) or 0)
 

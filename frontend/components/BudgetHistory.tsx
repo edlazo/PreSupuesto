@@ -231,13 +231,18 @@ export default function BudgetHistory() {
           Cargando presupuestos…
         </p>
       ) : budgets.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface px-4 py-10 text-center">
-          <p className="text-sm font-medium">Todavía no guardaste ningún presupuesto</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-            Armá uno en el escritorio: apenas le agregues la primera línea queda guardado y
-            aparece acá.
-          </p>
-        </div>
+        // An empty list and a list that could not be read look the same from
+        // here, and telling someone they have saved nothing when the database
+        // is away reads as having lost their work.
+        error ? null : (
+          <div className="rounded-xl border border-border bg-surface px-4 py-10 text-center">
+            <p className="text-sm font-medium">Todavía no guardaste ningún presupuesto</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+              Armá uno en el escritorio: apenas le agregues la primera línea queda guardado y
+              aparece acá.
+            </p>
+          </div>
+        )
       ) : (
         <>
           <div role="tablist" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
