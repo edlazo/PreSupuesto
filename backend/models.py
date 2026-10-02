@@ -3,10 +3,12 @@
 These mirror the tables defined in `supabase/schema.sql`.
 """
 
+import base64
+import binascii
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, model_validator
 
 # Borrador, En proceso, Terminado / cobrado.
 BudgetStatus = Literal["draft", "in_progress", "completed"]
@@ -378,14 +380,106 @@ class BudgetRead(BaseModel):
 # ---------------------------------------------------------------------------
 # Chat
 # ---------------------------------------------------------------------------
+ChatAttachmentKind = Literal["image", "audio"]
+
+# What a photo may be. Whatever the camera produced, the browser re-encodes it
+# before sending.
+IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+# A recording arrives as WAV whatever the phone recorded, because the browser
+# decodes it and writes the header itself: one format to support server-side,
+# and the one the assistant is surest to accept.
+AUDIO_MIME_TYPES = frozenset({"audio/wav"})
+
+# Vercel caps a request body at 4.5 MB and base64 adds a third on top of the
+# bytes, so the room left for the attachments themselves is about 3.3 MB. These
+# limits sit under that with the JSON around them accounted for. The browser
+# aims far lower: a photo is shrunk to a few hundred KB, and a minute of speech
+# at 16 kHz mono is 1.9 MB.
+MAX_IMAGE_BYTES = 1_500_000
+MAX_AUDIO_BYTES = 2_100_000
+MAX_ATTACHMENT_BYTES = 3_000_000
+MAX_ATTACHMENTS = 3
+
+
+def _decoded_base64(value: Any) -> Any:
+    """Decode base64 strictly, so a damaged upload is caught here.
+
+    Pydantic's own `Base64Bytes` drops characters outside the alphabet instead
+    of complaining, which would turn a truncated upload into a few bytes of
+    rubbish and spend a model call on it.
+    """
+    if not isinstance(value, str):
+        return value
+
+    try:
+        return base64.b64decode(value.strip(), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("No se pudo leer el archivo: llegó incompleto") from exc
+
+
+Base64Content = Annotated[bytes, BeforeValidator(_decoded_base64)]
+
+
+class ChatAttachment(BaseModel):
+    """A photo or a recording sent along with a chat message.
+
+    Typing a job description on a phone is slow, so the work can also arrive as
+    a picture of the note it is written on, or as the tradesman saying it out
+    loud.
+    """
+
+    kind: ChatAttachmentKind
+    mime_type: str = Field(max_length=100)
+    content: Base64Content = Field(description="The file itself, base64 encoded")
+
+    @model_validator(mode="after")
+    def _check_type_and_size(self) -> "ChatAttachment":
+        """Reject anything the assistant cannot read, or that is too large."""
+        if self.kind == "image":
+            allowed, limit, label = IMAGE_MIME_TYPES, MAX_IMAGE_BYTES, "La foto"
+        else:
+            allowed, limit, label = AUDIO_MIME_TYPES, MAX_AUDIO_BYTES, "El audio"
+
+        if self.mime_type not in allowed:
+            raise ValueError(f"{label} tiene un formato que no se puede leer: {self.mime_type}")
+
+        if not self.content:
+            raise ValueError(f"{label} llegó vacía")
+
+        if len(self.content) > limit:
+            raise ValueError(f"{label} es demasiado grande")
+
+        return self
+
+
 class ChatRequest(BaseModel):
     """A user message for the Hermes Agent."""
 
-    message: str = Field(min_length=1, description="User message in natural language")
+    message: str = Field(
+        default="",
+        max_length=8000,
+        description="User message in natural language. May be empty when something is attached",
+    )
     session_id: Optional[str] = Field(
         default=None,
         description="Hermes session id returned by a previous call, to keep conversation context",
     )
+    attachments: list[ChatAttachment] = Field(
+        default_factory=list,
+        max_length=MAX_ATTACHMENTS,
+        description="Photos of the job notes, or a recording describing the work",
+    )
+
+    @model_validator(mode="after")
+    def _has_something_to_answer(self) -> "ChatRequest":
+        """A turn needs text or an attachment, and has to fit in one request."""
+        if not self.message.strip() and not self.attachments:
+            raise ValueError("Escribí un mensaje, o mandá una foto o un audio")
+
+        if sum(len(item.content) for item in self.attachments) > MAX_ATTACHMENT_BYTES:
+            raise ValueError("Lo que mandaste pesa demasiado junto: probá de a una cosa")
+
+        return self
 
 
 class ChatResponse(BaseModel):

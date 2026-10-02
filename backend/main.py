@@ -1006,6 +1006,11 @@ async def chat(payload: ChatRequest) -> ChatResponse:
     gateway is down, the Gemini fallback answers instead and runs the same
     tools in this process. The response says which engine replied.
 
+    A photo of the notes the jobs are written on, or a recording of the user
+    describing them, can come with the message. Reading those is Gemini's job,
+    so a message carrying one goes down the fallback path whatever the gateway
+    is doing.
+
     Pass the `session_id` from the response back on the next call to keep the
     conversation going.
     """
@@ -1013,6 +1018,14 @@ async def chat(payload: ChatRequest) -> ChatResponse:
         answer = await agent_service.send_message(
             payload.message,
             session_id=payload.session_id,
+            attachments=[
+                agent_service.Attachment(
+                    kind=item.kind,
+                    mime_type=item.mime_type,
+                    content=item.content,
+                )
+                for item in payload.attachments
+            ],
         )
     except (AgentError, HermesServiceError) as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

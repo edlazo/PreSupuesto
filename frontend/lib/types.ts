@@ -207,6 +207,20 @@ export interface BlueRate {
   source: string;
 }
 
+export type ChatAttachmentKind = "image" | "audio";
+
+/**
+ * A photo or a recording sent with a chat message, as the API takes it.
+ *
+ * `content` is the file base64 encoded. The browser shrinks a photo and
+ * re-encodes a recording as WAV first; see lib/attachments.
+ */
+export interface ChatAttachment {
+  kind: ChatAttachmentKind;
+  mime_type: string;
+  content: string;
+}
+
 export interface ChatResponse {
   reply: string;
   session_id: string | null;
@@ -229,4 +243,16 @@ export interface ChatMessage {
   content: string;
   /** Set when the turn failed, so the bubble can be rendered as an error. */
   failed?: boolean;
+  /** What was sent along with the text, so the bubble can show it too. */
+  sent?: SentAttachment[];
+}
+
+/** How an attachment is shown back in the conversation once it was sent. */
+export interface SentAttachment {
+  id: string;
+  kind: ChatAttachmentKind;
+  /** A thumbnail, for a photo. */
+  preview?: string;
+  /** How long it runs, for a recording. */
+  seconds?: number;
 }

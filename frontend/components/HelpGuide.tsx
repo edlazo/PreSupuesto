@@ -16,7 +16,7 @@ const SECTIONS: Section[] = [
   {
     id: "chat",
     title: "Usar el asistente (opcional)",
-    summary: "Si preferís dictarlo, el asistente carga las líneas por vos.",
+    summary: "Contalo hablando o sacale una foto a lo anotado, y lo carga por vos.",
   },
   {
     id: "moneda",
@@ -286,6 +286,23 @@ export default function HelpGuide() {
             materiales van a la lista <strong>sin precio</strong>, solo para que el cliente
             sepa qué se va a comprar. Si no le decís cuánto cobrás una partida, te lo pregunta.
           </p>
+
+          <Steps title="Si no querés escribir en el celular">
+            <li>
+              <Button>🎤 Hablar</Button> graba lo que digas. Contá el trabajo y cuánto
+              cobrás, y cuando termines tocá <Button>Listo</Button>: se manda solo, como
+              un audio de WhatsApp. Si te arrepentís, la <strong>✕</strong> lo borra.
+            </li>
+            <li>
+              <Button>📷 Foto</Button> te deja sacar una foto o elegir una de la galería.
+              Sirve para la hoja donde tenés anotados los trabajos: los lee de ahí, con
+              los precios que estén escritos al lado.
+            </li>
+            <li>
+              Te contesta con lo que entendió, antes de guardar nada. Leelo: si escuchó
+              mal un número, decíselo y lo corrige. Si algo no se entiende, te pregunta.
+            </li>
+          </Steps>
 
           <Steps title="Para calcular un trabajo">
             <li>Escribí qué hay que hacer, con las medidas.</li>

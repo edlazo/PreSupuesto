@@ -14,6 +14,9 @@ The two engines differ in where state lives:
 A session therefore stays on the engine that owns it for as long as that engine
 is available, so a fallback conversation is not silently cut in half when the
 gateway comes back.
+
+Photos and recordings are read by Gemini directly, so a message carrying one
+takes the Gemini path whatever the gateway is doing: its chat API speaks text.
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ import threading
 from collections import OrderedDict
 from functools import partial
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Sequence
 from uuid import uuid4
 
 import anyio
@@ -83,14 +86,51 @@ fix the arguments and try again, or tell the user what is missing.
 Never do the arithmetic yourself; report the totals the tool returns. The
 total is the work and the labour only — the materials list adds nothing.
 
+A message may arrive as a photo or as a recording rather than typed text,
+because typing on a phone is slow for this user:
+* a photo is normally the handwritten note the jobs are written on, or the site
+  itself. Read what it says and turn it into work packages and materials. A
+  price written next to a job is the user's own price — use it as it stands;
+* a recording is the user describing the work out loud, in Argentine Spanish.
+  Work from what was actually said;
+* when a figure or a word is not legible or not audible, name the one you could
+  not make out and ask, instead of filling it in yourself;
+* read back what you understood before storing anything, so a misread number is
+  caught while it is still cheap to fix.
+
 Quantities use the catalog units (m2, m3, kg, m, bolsa, balde, u). Amounts are
 in {currency}.
 Keep replies short: a line per figure, then the total.
 """.strip()
 
 
+# What is sent when a photo or a recording arrives with nothing typed next to
+# it: the turn still needs a question for the model to answer.
+ATTACHMENT_ONLY_MESSAGE = (
+    "Fijate lo que te mando y decime qué trabajos y qué materiales entendiste, "
+    "con los precios que estén anotados."
+)
+
+# How an attachment is remembered once the turn is over. The bytes are dropped:
+# re-sending a photo on every later message of the conversation would be paid
+# for again each time, and the reply it produced is already in the transcript.
+ATTACHMENT_PLACEHOLDERS = {
+    "image": "[foto adjunta]",
+    "audio": "[audio adjunto]",
+}
+
+
 class AgentError(Exception):
     """Raised when no engine could answer the message."""
+
+
+@dataclass(frozen=True)
+class Attachment:
+    """A photo or a recording handed to the model alongside the text."""
+
+    kind: Literal["image", "audio"]
+    mime_type: str
+    content: bytes
 
 
 @dataclass(frozen=True)
@@ -249,7 +289,31 @@ async def _generate(client: Any, contents: list[Any], config: Any) -> tuple[Any,
     raise AgentError(f"Every Gemini model is unavailable: {last_error}")
 
 
-async def _run_gemini(message: str, session_id: Optional[str]) -> AgentReply:
+def _user_turn(message: str, attachments: Sequence[Attachment], types: Any) -> Any:
+    """The user turn as the model sees it: the text, then what came with it."""
+    text = message.strip() or ATTACHMENT_ONLY_MESSAGE
+    parts = [types.Part.from_text(text=text)]
+    parts.extend(
+        types.Part.from_bytes(data=item.content, mime_type=item.mime_type)
+        for item in attachments
+    )
+
+    return types.Content(role="user", parts=parts)
+
+
+def _remembered_turn(message: str, attachments: Sequence[Attachment], types: Any) -> Any:
+    """The same turn with the bytes replaced by a note of what was sent."""
+    said = [message.strip()] if message.strip() else []
+    said.extend(ATTACHMENT_PLACEHOLDERS[item.kind] for item in attachments)
+
+    return types.Content(role="user", parts=[types.Part.from_text(text=" ".join(said))])
+
+
+async def _run_gemini(
+    message: str,
+    session_id: Optional[str],
+    attachments: Sequence[Attachment] = (),
+) -> AgentReply:
     """Answer a message with Gemini, running tool calls locally in a loop."""
     from google.genai import types
 
@@ -257,11 +321,18 @@ async def _run_gemini(message: str, session_id: Optional[str]) -> AgentReply:
     config = _build_config()
 
     contents: list[Any] = _load_history(session_id)
-    contents.append(types.Content(role="user", parts=[types.Part.from_text(text=message)]))
+    turn_index = len(contents)
+    contents.append(_user_turn(message, attachments, types))
 
     effective_session = (
         session_id if _is_gemini_session(session_id) else f"{GEMINI_SESSION_PREFIX}{uuid4().hex}"
     )
+
+    def remember() -> None:
+        """Store the transcript, without carrying the attachments forward."""
+        if attachments:
+            contents[turn_index] = _remembered_turn(message, attachments, types)
+        _save_history(effective_session, contents)
 
     answering_model = settings.gemini_model
 
@@ -280,7 +351,7 @@ async def _run_gemini(message: str, session_id: Optional[str]) -> AgentReply:
 
         calls = response.function_calls or []
         if not calls:
-            _save_history(effective_session, contents)
+            remember()
             return AgentReply(
                 reply=(response.text or "").strip(),
                 session_id=effective_session,
@@ -306,7 +377,7 @@ async def _run_gemini(message: str, session_id: Optional[str]) -> AgentReply:
 
         contents.append(types.Content(role="user", parts=response_parts))
 
-    _save_history(effective_session, contents)
+    remember()
     raise AgentError(
         f"The agent kept calling tools after {MAX_TOOL_ROUNDS} rounds without answering"
     )
@@ -315,11 +386,25 @@ async def _run_gemini(message: str, session_id: Optional[str]) -> AgentReply:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
-async def send_message(message: str, *, session_id: Optional[str] = None) -> AgentReply:
+async def send_message(
+    message: str,
+    *,
+    session_id: Optional[str] = None,
+    attachments: Sequence[Attachment] = (),
+) -> AgentReply:
     """Answer a user message, preferring Hermes and falling back to Gemini."""
     # A fallback session stays on Gemini while Gemini is available.
     if _is_gemini_session(session_id) and settings.gemini_configured:
-        return await _run_gemini(message, session_id)
+        return await _run_gemini(message, session_id, attachments)
+
+    # Hermes is reached over a chat API that carries text, so a photo or a
+    # recording goes to Gemini even when the gateway is up and running.
+    if attachments:
+        if not settings.gemini_configured:
+            raise AgentError(
+                "Reading photos and recordings needs GEMINI_API_KEY in backend/.env"
+            )
+        return await _run_gemini(message, session_id, attachments)
 
     hermes_error: Optional[Exception] = None
 

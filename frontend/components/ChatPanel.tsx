@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ChatComposer from "./ChatComposer";
 import { ApiError, sendChatMessage } from "@/lib/api";
+import { formatDuration, type PendingAttachment } from "@/lib/attachments";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const SUGGESTIONS = [
@@ -20,7 +22,6 @@ interface ChatPanelProps {
 /** Conversation with the Hermes Agent. */
 export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [engine, setEngine] = useState<ChatResponse["engine"]>(null);
   const [isSending, setIsSending] = useState(false);
@@ -42,10 +43,10 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
     });
   }, [messages, isSending]);
 
-  async function send(text: string) {
+  async function send(text: string, attachments: PendingAttachment[] = []) {
     const trimmed = text.trim();
 
-    if (!trimmed || isSending) {
+    if ((!trimmed && attachments.length === 0) || isSending) {
       return;
     }
 
@@ -53,14 +54,23 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
       id: nextMessageId("user"),
       role: "user",
       content: trimmed,
+      sent: attachments.map((item) => ({
+        id: item.id,
+        kind: item.payload.kind,
+        preview: item.preview,
+        seconds: item.seconds,
+      })),
     };
 
     setMessages((current) => [...current, userMessage]);
-    setInput("");
     setIsSending(true);
 
     try {
-      const response = await sendChatMessage(trimmed, sessionId);
+      const response = await sendChatMessage(
+        trimmed,
+        sessionId,
+        attachments.map((item) => item.payload),
+      );
 
       setSessionId(response.session_id);
       setEngine(response.engine);
@@ -138,7 +148,7 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
             <div>
               <p className="text-sm font-medium">Contale qué trabajo hay que presupuestar</p>
               <p className="mt-1 text-sm text-muted">
-                Carga el trabajo con tu precio y los materiales en la lista, sin precio.
+                Escribilo, grabá un audio, o sacale una foto a lo que anotaste.
               </p>
             </div>
             <div className="flex w-full max-w-md flex-col gap-2">
@@ -161,7 +171,7 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
+                className={`flex max-w-[85%] flex-col gap-2 whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : message.failed
@@ -169,7 +179,32 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
                       : "bg-surface-muted text-foreground"
                 }`}
               >
-                {message.content}
+                {message.sent?.length ? (
+                  <span className="flex flex-wrap gap-2">
+                    {message.sent.map((item) =>
+                      item.preview ? (
+                        // Already in memory as a data URL: nothing for
+                        // next/image to fetch, size or cache.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={item.id}
+                          src={item.preview}
+                          alt="Foto que mandaste"
+                          className="h-20 w-20 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span
+                          key={item.id}
+                          className="flex items-center gap-1.5 rounded-lg bg-black/15 px-2 py-1 text-xs font-medium"
+                        >
+                          <span aria-hidden="true">🎤</span>
+                          Audio {formatDuration(item.seconds ?? 0)}
+                        </span>
+                      ),
+                    )}
+                  </span>
+                ) : null}
+                {message.content ? <span>{message.content}</span> : null}
               </div>
             </article>
           ))
@@ -187,42 +222,7 @@ export default function ChatPanel({ onTurnComplete, onClose }: ChatPanelProps) {
         ) : null}
       </div>
 
-      <form
-        className="border-t border-border p-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(input);
-        }}
-      >
-        <div className="flex items-end gap-2">
-          <label htmlFor="chat-input" className="sr-only">
-            Mensaje
-          </label>
-          <textarea
-            id="chat-input"
-            rows={2}
-            value={input}
-            disabled={isSending}
-            placeholder="Ej.: presupuestá 15 m² de piso de cocina con porcelanato"
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter sends, Shift+Enter adds a line break.
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void send(input);
-              }
-            }}
-            className="min-h-[3rem] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-primary disabled:opacity-60"
-          />
-          <button
-            type="submit"
-            disabled={isSending || input.trim().length === 0}
-            className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Enviar
-          </button>
-        </div>
-      </form>
+      <ChatComposer isSending={isSending} onSend={(text, attachments) => void send(text, attachments)} />
     </section>
   );
 }

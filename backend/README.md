@@ -82,7 +82,27 @@ What differs on the fallback path:
   and are lost on restart — Hermes is what persists them;
 * a session stays on the engine that started it while that engine is available,
   so the fallback conversation is not cut in half when Hermes comes back;
-* `POST /api/chat` reports which engine answered in its `engine` field.
+* `POST /api/chat` reports which engine answered in its `engine` field;
+* a message carrying a photo or a recording always goes to Gemini, whatever the
+  gateway is doing — see below.
+
+## Photos and recordings
+
+Typing a job description on a phone is slow, so `POST /api/chat` also takes
+`attachments`: up to three photos of the notes the jobs are written on, or a
+recording of them being described out loud. Each is `{kind, mime_type,
+content}` with the file base64 encoded.
+
+Gemini reads both directly, so an attachment takes that path even when the
+Hermes gateway is up: the gateway is reached over a chat API that carries text.
+
+The browser prepares them (`frontend/lib/attachments.ts`), which is what keeps
+them inside the 4.5 MB a deployed request body can hold: a photo is turned
+upright, shrunk to 1600 px and re-encoded as JPEG, and a recording is decoded
+from whatever the phone produced and written out as 16 kHz mono WAV — the one
+audio format that is accepted everywhere. `models.py` caps the sizes again on
+arrival, and the bytes are dropped from the stored transcript once the turn is
+answered so the same photo is not paid for on every later message.
 
 ## Setup
 
@@ -188,7 +208,7 @@ A condition whose `applies_to` is `note` states something instead of charging it
 | GET | `/api/budgets/{id}` | One budget with its lines — what the web app's budget preview reads |
 | GET | `/api/budgets/{id}/pdf` | The budget as a PDF, sent as an attachment with a suggested filename. `?currency=USD` converts it, `&rate=` sets the rate to apply |
 | GET | `/api/currency/blue` | Current blue dollar buy and sell prices. `?refresh=true` skips the cache |
-| POST | `/api/chat` | `{"message": "...", "session_id": "..."}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini` |
+| POST | `/api/chat` | `{"message": "...", "session_id": "...", "attachments": [...]}`; send the returned `session_id` back to keep the conversation. The answer's `engine` is `hermes` or `gemini`. An attachment is `{"kind": "image"\|"audio", "mime_type": "...", "content": "<base64>"}` |
 
 ## Material codes
 

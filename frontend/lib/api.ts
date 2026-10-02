@@ -7,6 +7,7 @@ import type {
   BudgetItemCreate,
   BudgetItemUpdate,
   BudgetUpdate,
+  ChatAttachment,
   ChatResponse,
   Client,
   ClientCreate,
@@ -57,7 +58,9 @@ async function readErrorMessage(response: Response): Promise<string> {
     }
     // Validation errors arrive as a list of objects.
     if (Array.isArray(detail) && detail.length > 0) {
-      return detail.map((item) => item?.msg ?? String(item)).join(", ");
+      return detail
+        .map((item) => String(item?.msg ?? item).replace(/^Value error, /, ""))
+        .join(", ");
     }
   } catch {
     // Body was empty or not JSON; fall through to the generic message.
@@ -353,10 +356,11 @@ export function getBlueRate(refresh = false): Promise<BlueRate> {
 export function sendChatMessage(
   message: string,
   sessionId: string | null,
+  attachments: ChatAttachment[] = [],
 ): Promise<ChatResponse> {
   return request<ChatResponse>("/api/chat", {
     method: "POST",
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, attachments }),
   });
 }
 
